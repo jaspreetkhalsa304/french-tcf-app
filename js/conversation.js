@@ -102,8 +102,13 @@ window.Conversation = (function () {
     const lessonBlock = L
       ? `\n\n===== THE LESSON YOU ARE TEACHING RIGHT NOW =====\n` +
         `Title: "${L.title}"\nGoal: ${L.goal}\nTrack: ${L.track} (level ${L.level}).\n` +
-        `Teach EXACTLY this content, broken into tiny interactive steps, IN THIS ORDER:\n${lessonBrief(L)}\n` +
-        `Do NOT wander onto other topics. When (and only when) you have covered all of the above and the student has practised it, end your final message with the marker "✅ LESSON COMPLETE" on its own line, then a one-sentence recap.\n` +
+        `Here is the EXACT material to teach, as a numbered list of points. Cover EVERY point, IN THIS ORDER, one per turn:\n${lessonBrief(L)}\n\n` +
+        `FIDELITY RULES (important):\n` +
+        `• You MUST actually STATE each rule and its examples — quote the rule and the « example » phrases from the point you're on. Do NOT just gesture at the topic ("let's learn être") and move on; explain WHAT the rule is and WHY, using the wording above.\n` +
+        `• ${L.track === "Pronunciation"
+              ? "This is a PRONUNCIATION lesson — for each rule, tell the student exactly HOW it sounds (e.g. the silent letter that links, the 'z' sound in liaison, the rounded 'u'), give the « example », and have them say it back. Don't reduce it to grammar."
+              : "Teach the rule precisely (forms, agreement, word order) with the « examples » given, then have the student produce one."}\n` +
+        `• Do NOT wander onto other topics or other lessons. When (and only when) you have covered ALL the points above and the student has practised them, end your final message with the marker "✅ LESSON COMPLETE" on its own line, then a one-sentence recap.\n` +
         `=================================================`
       : "";
     return (
@@ -124,6 +129,7 @@ window.Conversation = (function () {
       `• Keep it feeling like a back-and-forth chat with a friendly teacher, not a script being read.\n\n` +
       `OTHER RULES:\n` +
       `• Speak mostly ENGLISH at ${lvl} (more French as level rises). EVERY French word goes inside « guillemets » with its English meaning — the app reads the « French » aloud.\n` +
+      `• Formatting: you MAY use **bold** for key terms and *italics* for translations — the app renders them. Use real line breaks between ideas. Never write a stray asterisk on its own.\n` +
       `• If the student writes French with a mistake, add ONE line at the very end starting with "🔧 " quoting the error and the fix in English.\n` +
       `• Be encouraging and patient. Build on what came before.` +
       lessonBlock
@@ -673,13 +679,16 @@ window.Conversation = (function () {
   function renderRichAI(text, lecture) {
     const wrap = document.createElement("span");
     // Build HTML: wrap each « French phrase » in .fr-inline, and each word inside
-    // it in a tappable .fr-word span.
-    const html = escapeHtml(text).replace(/«\s*([^»]+?)\s*»/g, (m, inner) => {
+    // it in a tappable .fr-word span. Then render light Markdown (**bold**, *italics*)
+    // and line breaks on the surrounding English — the tutor uses these and we don't
+    // want raw asterisks showing in the chat.
+    let html = escapeHtml(text).replace(/«\s*([^»]+?)\s*»/g, (m, inner) => {
       const words = inner.split(/(\s+)/).map((tok) =>
         /\S/.test(tok) ? `<span class="fr-word" role="button" tabindex="0">${tok}</span>` : tok
       ).join("");
       return `<span class="fr-inline">« ${words} »</span>`;
     });
+    html = renderMarkdown(html);
     wrap.innerHTML = html;
     // Wire each tappable word.
     wrap.querySelectorAll(".fr-word").forEach((el) => {
@@ -699,6 +708,23 @@ window.Conversation = (function () {
       wrap.appendChild(btn);
     }
     return wrap;
+  }
+
+  /* Light Markdown → HTML for tutor replies. Input is ALREADY HTML-escaped (with
+   * our own <span> tags injected for French phrases), so the only tags present are
+   * ours and the only raw characters that matter are * and newlines. We convert:
+   *   **x** → <strong>, *x* / _x_ → <em>, `x` → <code>, newlines → <br>.
+   * We deliberately do NOT touch anything inside « » French spans (they contain
+   * no asterisks). Bold is matched before italics so **x** isn't eaten by *x*. */
+  function renderMarkdown(html) {
+    return html
+      .replace(/\*\*([^*]+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/(^|[^*])\*([^*\n]+?)\*(?!\*)/g, "$1<em>$2</em>")
+      .replace(/(^|[^_])_([^_\n]+?)_(?!_)/g, "$1<em>$2</em>")
+      .replace(/`([^`]+?)`/g, "<code>$1</code>")
+      // collapse any stray leftover asterisks the model emitted alone
+      .replace(/(^|\s)\*(\s|$)/g, "$1$2")
+      .replace(/\n/g, "<br>");
   }
 
   /* ----- Tap-a-word: speak it + show an English translation popover ----- */
