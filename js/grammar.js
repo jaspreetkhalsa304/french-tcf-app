@@ -15,38 +15,45 @@ window.Grammar = (function () {
     const done = completed();
     const levels = window.CURRICULUM.levels;
 
-    // Count grammar lessons + how many done, for the header.
-    const grammarAll = window.LESSONS.filter((l) => l.track === "Sentences");
-    const doneCount = grammarAll.filter((l) => done[l.id]).length;
+    // This tab now shows BOTH grammar rules (track "Sentences") AND pronunciation
+    // rules (track "Pronunciation" — silent letters, liaison, the u vowel, nasal
+    // vowels, e muet…), which were previously hidden here. Count all of them.
+    const ruleTracks = ["Sentences", "Pronunciation"];
+    const rulesAll = window.LESSONS.filter((l) => ruleTracks.includes(l.track));
+    const doneCount = rulesAll.filter((l) => done[l.id]).length;
 
     function lessonRow(l) {
       const isDone = done[l.id];
+      const icon = l.track === "Pronunciation" ? "🗣️" : "📘";
       const cur = l.level === s.level ? ' <span class="badge" style="padding:1px 7px">your level</span>' : "";
       return `
         <button class="basic-row lesson-row" data-lesson="${l.id}">
-          <div class="br-main"><span class="br-fr">${isDone ? "✅ " : "📘 "}${escapeHtml(l.title)}</span>${cur}</div>
+          <div class="br-main"><span class="br-fr">${isDone ? "✅ " : icon + " "}${escapeHtml(l.title)}</span>${cur}</div>
           <div class="br-en">${escapeHtml(l.goal)}</div>
         </button>`;
     }
 
     const sections = levels
       .map((lv) => {
-        const items = grammarAll.filter((l) => l.level === lv);
-        if (!items.length) return "";
+        const grammar = window.LESSONS.filter((l) => l.level === lv && l.track === "Sentences");
+        const pron = window.LESSONS.filter((l) => l.level === lv && l.track === "Pronunciation");
+        const total = grammar.length + pron.length;
+        if (!total) return "";
         return `
           <div class="card">
-            <h3>${lv} — ${window.CURRICULUM.levelNames[lv]} <span class="muted" style="font-size:13px">(${items.length})</span></h3>
-            ${items.map(lessonRow).join("")}
+            <h3>${lv} — ${window.CURRICULUM.levelNames[lv]} <span class="muted" style="font-size:13px">(${total})</span></h3>
+            ${grammar.length ? `<h4 class="track-h">🧩 Grammar rules</h4>${grammar.map(lessonRow).join("")}` : ""}
+            ${pron.length ? `<h4 class="track-h">🗣️ Pronunciation rules <span class="muted" style="font-weight:400;font-size:12px">— silent letters, liaison, vowels</span></h4>${pron.map(lessonRow).join("")}` : ""}
           </div>`;
       })
       .join("");
 
     view.innerHTML = `
       <div class="card">
-        <div class="row"><span class="badge">🧩 Grammar</span><span class="badge">all levels A1 → C1</span></div>
-        <h2>French grammar</h2>
-        <p class="muted">Every grammar topic, taught step-by-step — conjugations, tenses, pronouns, sentence-building. You can open any lesson from any level. ${doneCount}/${grammarAll.length} completed.</p>
-        <div class="bar" style="margin-top:6px"><span style="width:${Math.round((doneCount / grammarAll.length) * 100)}%"></span></div>
+        <div class="row"><span class="badge">🧩 Grammar & pronunciation</span><span class="badge">all levels A1 → C1</span></div>
+        <h2>French grammar & pronunciation rules</h2>
+        <p class="muted">Every rule, taught step-by-step — conjugations, tenses, pronouns and sentence-building, plus the <strong>pronunciation rules</strong>: silent letters, liaison, the <em>u</em> vowel, nasal vowels, the <em>e muet</em>. Open any lesson from any level. ${doneCount}/${rulesAll.length} completed.</p>
+        <div class="bar" style="margin-top:6px"><span style="width:${rulesAll.length ? Math.round((doneCount / rulesAll.length) * 100) : 0}%"></span></div>
       </div>
       ${sections}
     `;
