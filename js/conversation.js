@@ -9,8 +9,61 @@ window.Conversation = (function () {
   let started = false;
   let lectureMode = false; // when true, AI replies are spoken bilingually & slowly
   let lectureLevel = null; // level being taught (may differ from current level via index)
+  let lectureLesson = null; // the SPECIFIC syllabus lesson currently being taught (object)
   let scenarioMode = false; // when true, AI role-plays a scenario partner
   let activeScenario = null; // the scenario object being role-played
+
+  /* ===== Syllabus: the AI tutor teaches the REAL lessons, in order =====
+   * The Talk-tab lectures used to improvise from a loose topic list, so they
+   * jumped around. Now they walk window.LESSONS in the SAME order the 📚 Lessons
+   * tab shows them (Exam → Sentences → Pronunciation, within each level), teaching
+   * one lesson at a time and tracking where the learner is. Completion is shared
+   * with the Lessons tab via state.lessonsDone, so progress is one thing, not two. */
+
+  // All lessons for a level, in canonical course order.
+  function syllabusFor(level) {
+    const by = (window.LESSONS_BY_LEVEL && window.LESSONS_BY_LEVEL[level]) || {};
+    return [...(by.Exam || []), ...(by.Sentences || []), ...(by.Pronunciation || [])];
+  }
+
+  // Where is the learner in this level's syllabus? Returns the index of the first
+  // not-yet-done lesson (so the tutor resumes where they left off), or 0.
+  function syllabusPos(level) {
+    const s = window.App.getState();
+    const done = s.lessonsDone || {};
+    const list = syllabusFor(level);
+    // Honour an explicit saved position if the learner navigated manually.
+    const saved = (s.syllabusPos || {})[level];
+    if (typeof saved === "number" && saved >= 0 && saved < list.length) return saved;
+    const firstUndone = list.findIndex((l) => !done[l.id]);
+    return firstUndone === -1 ? 0 : firstUndone;
+  }
+  function setSyllabusPos(level, idx) {
+    const s = window.App.getState();
+    if (!s.syllabusPos) s.syllabusPos = {};
+    s.syllabusPos[level] = idx;
+    window.App.save();
+  }
+
+  // Turn a lesson's steps into a compact plain-text brief the AI teaches FROM,
+  // so it covers the actual taught content (not something it makes up).
+  function lessonBrief(lesson) {
+    const parts = [];
+    for (const st of lesson.steps || []) {
+      if (st.type === "text" || st.type === "rule") {
+        parts.push("• " + stripHtml(st.html));
+      } else if (st.type === "examples") {
+        const ex = (st.items || []).map((it) => `« ${it.fr} » (${it.en})`).join("; ");
+        parts.push("• Examples: " + ex);
+      } else if (st.type === "say" || st.type === "build") {
+        if (st.fr) parts.push(`• Practice phrase: « ${st.fr} »${st.en ? " (" + st.en + ")" : ""}`);
+      }
+    }
+    return parts.join("\n");
+  }
+  function stripHtml(h) {
+    return String(h || "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+  }
 
   // How much English to use, by level. Beginners get heavy English support.
   function frenchRatio(lvl) {
@@ -39,17 +92,26 @@ window.Conversation = (function () {
     );
   }
 
-  // A different persona for LECTURES: an INTERACTIVE class, not a monologue.
-  // The teacher says a LITTLE, then hands the turn back to the student every time.
+  // Persona for LECTURES: an INTERACTIVE class that teaches ONE SPECIFIC syllabus
+  // lesson (lectureLesson), staying strictly on that lesson's content and order.
   function lectureSystemPrompt() {
     const s = window.App.getState();
     const lvl = lectureLevel || s.level;
     const canDo = window.CURRICULUM.canDo[lvl];
+    const L = lectureLesson;
+    const lessonBlock = L
+      ? `\n\n===== THE LESSON YOU ARE TEACHING RIGHT NOW =====\n` +
+        `Title: "${L.title}"\nGoal: ${L.goal}\nTrack: ${L.track} (level ${L.level}).\n` +
+        `Teach EXACTLY this content, broken into tiny interactive steps, IN THIS ORDER:\n${lessonBrief(L)}\n` +
+        `Do NOT wander onto other topics. When (and only when) you have covered all of the above and the student has practised it, end your final message with the marker "✅ LESSON COMPLETE" on its own line, then a one-sentence recap.\n` +
+        `=================================================`
+      : "";
     return (
       `You are Camille, a warm French teacher giving a LIVE ONE-ON-ONE class to an ENGLISH-speaking student at CEFR level ${lvl} (can: ${canDo}).\n\n` +
+      `You are teaching a FIXED SYLLABUS, one lesson at a time, in order. You teach ONLY the specific lesson given below — never skip ahead, never improvise a different topic, never start "random" material. Stay on THIS lesson until it is done.\n\n` +
       `THIS IS A CONVERSATION, NOT A LECTURE. The single most important rule: you speak only a LITTLE, then STOP and hand the turn back to the student. A real tutor never talks for more than ~20 seconds before letting the student respond.\n\n` +
       `EVERY message you send MUST:\n` +
-      `1. Teach just ONE tiny thing (a single phrase, word, or mini-rule) — never a whole topic at once.\n` +
+      `1. Teach just ONE tiny piece of THIS lesson (a single phrase, word, or mini-rule) — never the whole lesson at once.\n` +
       `2. Be SHORT: at most ~3–4 sentences of English plus 1–2 French examples in « guillemets » (with English meaning right after).\n` +
       `3. END with a DIRECT request to the student that they must act on before you continue. Make it one of these and label it clearly on its own last line:\n` +
       `   • "🔁 Repeat:" → ask them to say a French phrase out loud (give the phrase in « »).\n` +
@@ -58,12 +120,13 @@ window.Conversation = (function () {
       `   Pick whichever fits; vary them so it stays lively.\n\n` +
       `WHEN THE STUDENT RESPONDS:\n` +
       `• React to what THEY actually said first — praise what's right, gently fix what's wrong (quote it, give the fix in English).\n` +
-      `• If they got it, teach the NEXT tiny thing and again end with a request. If they struggled, re-explain that same thing a different way and ask again — don't move on.\n` +
+      `• If they got it, teach the NEXT tiny piece OF THIS LESSON and again end with a request. If they struggled, re-explain that same thing a different way and ask again — don't move on.\n` +
       `• Keep it feeling like a back-and-forth chat with a friendly teacher, not a script being read.\n\n` +
       `OTHER RULES:\n` +
       `• Speak mostly ENGLISH at ${lvl} (more French as level rises). EVERY French word goes inside « guillemets » with its English meaning — the app reads the « French » aloud.\n` +
       `• If the student writes French with a mistake, add ONE line at the very end starting with "🔧 " quoting the error and the fix in English.\n` +
-      `• Be encouraging and patient. Build on what came before. After ~8–10 exchanges, give a short recap and tell them they've finished this mini-lesson.`
+      `• Be encouraging and patient. Build on what came before.` +
+      lessonBlock
     );
   }
 
@@ -72,6 +135,7 @@ window.Conversation = (function () {
     messages = [];
     lectureMode = false;
     lectureLevel = null;
+    lectureLesson = null;
     scenarioMode = false;
     activeScenario = null;
     const s = window.App.getState();
@@ -91,13 +155,20 @@ window.Conversation = (function () {
         }
         ${
           keyOn
-            ? `<div class="row" style="margin-bottom:6px">
-                 <strong style="font-size:13px">👩‍🏫 Lecture:</strong>
-                 <button class="btn blue" id="lectureBtn" style="padding:8px 12px;font-size:13px">Teach me level ${s.level} →</button>
-                 <button class="btn secondary" id="indexBtn" style="padding:8px 12px;font-size:13px">📑 Course index</button>
-                 <span class="muted" style="font-size:12px">jump to any level or topic</span>
+            ? (function () {
+                const list = syllabusFor(s.level);
+                const pos = syllabusPos(s.level);
+                const next = list[pos];
+                const label = next
+                  ? `Continue lesson ${pos + 1}/${list.length}: ${escapeHtml(next.title)} →`
+                  : `Teach me level ${s.level} →`;
+                return `<div class="row" style="margin-bottom:6px;flex-wrap:wrap">
+                 <strong style="font-size:13px;width:100%;margin-bottom:2px">👩‍🏫 Guided course (taught in order):</strong>
+                 <button class="btn blue" id="lectureBtn" style="padding:8px 12px;font-size:13px">${label}</button>
+                 <button class="btn secondary" id="indexBtn" style="padding:8px 12px;font-size:13px">📑 Syllabus</button>
                </div>
-               <div id="tutorIndex" class="tutor-index hidden"></div>`
+               <div id="tutorIndex" class="tutor-index hidden"></div>`;
+              })()
             : ""
         }
         <div class="row">
@@ -146,7 +217,7 @@ window.Conversation = (function () {
       const mic = view.querySelector("#micBtn");
       if (window.Speech.sttSupported) mic.addEventListener("click", () => micInput(view, mic));
       const lec = view.querySelector("#lectureBtn");
-      if (lec) lec.addEventListener("click", () => lecture(view));
+      if (lec) lec.addEventListener("click", () => resumeSyllabus(view));
       const idxBtn = view.querySelector("#indexBtn");
       if (idxBtn) idxBtn.addEventListener("click", () => toggleIndex(view));
     }
@@ -164,18 +235,26 @@ window.Conversation = (function () {
   function buildIndex(view, box) {
     const s = window.App.getState();
     const C = window.CURRICULUM;
+    const done = s.lessonsDone || {};
+    const trackIcon = (t) => t === "Pronunciation" ? "🗣️" : t === "Exam" ? "📝" : "🧩";
     box.innerHTML = C.levels.map((lvl) => {
-      const grammar = C.grammar[lvl] || [];
-      const phon = C.phonetics[lvl] || [];
-      // A1 starts with the absolute-beginner foundations (alphabet, sounds, etc.).
-      const foundations = lvl === "A1" ? (C.foundations || []) : [];
       const here = lvl === s.level;
-      const topics = [
-        ...foundations.map((t) => ({ t, kind: "foundation" })),
-        ...grammar.map((t) => ({ t, kind: "grammar" })),
-        ...phon.map((t) => ({ t, kind: "pronunciation" })),
-      ];
-      const icon = (k) => k === "foundation" ? "🔤" : k === "grammar" ? "🧩" : "🗣️";
+      const list = syllabusFor(lvl);
+      const pos = syllabusPos(lvl);
+      const doneCount = list.filter((l) => done[l.id]).length;
+      const rows = list.map((l, i) => {
+        const isDone = done[l.id];
+        const isNext = here && i === pos;
+        const mark = isDone ? "✅" : trackIcon(l.track);
+        return `
+          <button class="basic-row" data-teachlesson="${l.id}" data-lessonlevel="${lvl}">
+            <div class="br-main">
+              <span class="br-fr">${mark} ${i + 1}. ${escapeHtml(l.title)}</span>
+              ${isNext ? `<span class="badge" style="margin-left:6px">next ▶</span>` : ""}
+            </div>
+            <div class="br-en">${escapeHtml(l.goal)}</div>
+          </button>`;
+      }).join("");
       return `
         <details class="level-block" ${here ? "open" : ""}>
           <summary>
@@ -183,82 +262,112 @@ window.Conversation = (function () {
             <span class="lvl-name">${escapeHtml(C.levelNames[lvl])}</span>
             ${here ? `<span class="badge" style="margin-left:6px">you are here</span>` : ""}
             <span class="spacer"></span>
-            <span class="lvl-count">${topics.length} topics</span>
+            <span class="lvl-count">${list.length ? `${doneCount}/${list.length} done` : "soon"}</span>
           </summary>
           <div class="level-body">
             <p class="muted" style="margin:2px 0 8px">${escapeHtml(C.canDo[lvl] || "")}</p>
-            <button class="btn blue" data-teachlevel="${lvl}" style="font-size:13px;padding:7px 12px;margin-bottom:8px">👩‍🏫 Teach me the whole ${lvl} level →</button>
-            ${foundations.length ? `<div class="muted" style="font-size:12px;margin:6px 0 4px">🔰 <strong>Start from the very beginning</strong> — tap a foundation:</div>` : ""}
-            ${foundations.map((t) =>
-              `<button class="basic-row" data-teachtopic="${escapeHtml(t)}" data-topiclevel="${lvl}">
-                 <div class="br-main"><span class="br-fr">🔤 ${escapeHtml(t)}</span></div>
-               </button>`
-            ).join("")}
-            <div class="muted" style="font-size:12px;margin:8px 0 4px">Or jump to a ${foundations.length ? "grammar/sound" : ""} topic:</div>
-            ${[...grammar.map((t) => ({ t, kind: "grammar" })), ...phon.map((t) => ({ t, kind: "pronunciation" }))].map((o) =>
-              `<button class="basic-row" data-teachtopic="${escapeHtml(o.t)}" data-topiclevel="${lvl}">
-                 <div class="br-main"><span class="br-fr">${icon(o.kind)} ${escapeHtml(o.t)}</span></div>
-               </button>`
-            ).join("")}
+            ${list.length
+              ? `<button class="btn blue" data-startlevel="${lvl}" style="font-size:13px;padding:7px 12px;margin-bottom:8px">👩‍🏫 Start ${lvl} from lesson 1 →</button>
+                 <div class="muted" style="font-size:12px;margin:6px 0 4px">Lessons are taught <strong>in this order</strong> — tap any one to teach it now:</div>
+                 ${rows}`
+              : `<p class="muted">Guided lessons for ${lvl} are coming soon.</p>`}
           </div>
         </details>`;
     }).join("");
 
-    box.querySelectorAll("[data-teachlevel]").forEach((b) =>
-      b.addEventListener("click", () => lecture(view, { level: b.dataset.teachlevel }))
+    // Start a level from its first lesson.
+    box.querySelectorAll("[data-startlevel]").forEach((b) =>
+      b.addEventListener("click", () => {
+        setSyllabusPos(b.dataset.startlevel, 0);
+        teachLessonByIndex(view, b.dataset.startlevel, 0);
+      })
     );
-    box.querySelectorAll("[data-teachtopic]").forEach((b) =>
-      b.addEventListener("click", () =>
-        lecture(view, { level: b.dataset.topiclevel, topic: b.dataset.teachtopic })
-      )
+    // Jump straight into a specific lesson (and set the position there).
+    box.querySelectorAll("[data-teachlesson]").forEach((b) =>
+      b.addEventListener("click", () => {
+        const lvl = b.dataset.lessonlevel;
+        const idx = syllabusFor(lvl).findIndex((l) => l.id === b.dataset.teachlesson);
+        if (idx < 0) return;
+        setSyllabusPos(lvl, idx);
+        teachLessonByIndex(view, lvl, idx);
+      })
     );
   }
 
-  // Lecture mode: an interactive class. opts.level overrides the current level
-  // (jump from the index); opts.topic focuses on one grammar/pronunciation point.
-  async function lecture(view, opts = {}) {
-    const s = window.App.getState();
-    const lvl = opts.level || s.level;
+  // Resume the guided course: teach the learner's CURRENT lesson in this level's
+  // syllabus (the first not-yet-done one, or wherever they navigated to).
+  function resumeSyllabus(view) {
+    const lvl = window.App.getState().level;
+    const list = syllabusFor(lvl);
+    if (!list.length) { window.App.toast("No guided lessons for this level yet."); return; }
+    let pos = syllabusPos(lvl);
+    if (pos >= list.length) pos = list.length - 1; // all done → revisit the last
+    teachLessonByIndex(view, lvl, pos);
+  }
+
+  // Teach ONE specific syllabus lesson interactively. The AI is anchored to that
+  // lesson's real content (lessonBrief) and told not to wander. When it emits
+  // "✅ LESSON COMPLETE", we mark it done and offer the next lesson in order.
+  async function teachLessonByIndex(view, lvl, idx) {
+    const list = syllabusFor(lvl);
+    const lesson = list[idx];
+    if (!lesson) return;
     lectureLevel = lvl;
-    const topic = opts.topic || null;
-    const grammar = (window.CURRICULUM.grammar[lvl] || []).join(", ");
-    const phonetics = (window.CURRICULUM.phonetics[lvl] || []).join(", ");
-    // Collapse the index if it's open, so the chat is in view.
+    lectureLesson = lesson;
+    lectureMode = true; // reply spoken slowly + bilingually
+    setSyllabusPos(lvl, idx);
+
+    // Collapse the syllabus panel if open, so the chat is in view.
     const box = view.querySelector("#tutorIndex");
     if (box) box.classList.add("hidden");
     const chat = view.querySelector("#chat");
     chat.innerHTML = "";
-    lectureMode = true; // reply spoken slowly + bilingually
 
-    if (topic) {
-      addBubble(chat, "ai", `👩‍🏫 Level ${lvl} — let's focus on “${topic}”. I'll teach a little, then it's your turn — type or tap 🎤.`);
-      messages = [{
-        role: "user",
-        content:
-          `Teach me this ONE French topic at level ${lvl}: "${topic}". ` +
-          `Give a one-line welcome naming the topic, teach just the FIRST tiny piece of it (one point + an example), ` +
-          `then immediately STOP and ask me to do something (repeat, answer, or translate). We'll go back and forth on this topic.`,
-      }];
-    } else {
-      addBubble(chat, "ai", `👩‍🏫 Starting your level ${lvl} class. I'll teach a little, then it's your turn to answer — type or tap 🎤. One moment…`);
-      // For A1, begin from the absolute basics (alphabet, accents, sounds) BEFORE grammar.
-      const foundations = (lvl === "A1" ? (window.CURRICULUM.foundations || []) : []).join("; ");
-      const startInstruction = foundations
-        ? `Begin my COMPLETE BEGINNER French class. I am starting from zero, so begin at the very beginning. ` +
-          `First cover these foundations IN THIS ORDER, one tiny step at a time: ${foundations}. ` +
-          `Only AFTER the foundations, move on to these grammar topics: ${grammar}; and pronunciation: ${phonetics}. ` +
-          `Start now with a one-line warm welcome, then teach the FIRST foundation — the French alphabet — beginning with just the first few letters and how they're said. ` +
-          `Then STOP and ask me to repeat them. Keep each step tiny; we go back and forth.`
-        : `Begin my level ${lvl} French class. Over this session we'll gradually cover these grammar topics: ${grammar}; ` +
-          `and these pronunciation points: ${phonetics}. ` +
-          `Give a one-line warm welcome, teach just the FIRST tiny thing (one phrase or mini-point with an example), ` +
-          `then immediately STOP and ask me to do something (repeat, answer, or translate). Keep it short — we go back and forth.`;
-      messages = [{ role: "user", content: startInstruction }];
-    }
+    addBubble(chat, "ai",
+      `👩‍🏫 Lesson ${idx + 1} of ${list.length} · ${lvl}\n\n` +
+      `“${lesson.title}” — ${lesson.goal}\n\n` +
+      `I'll teach this step by step; answer me each time — type or tap 🎤. One moment…`);
+
+    messages = [{
+      role: "user",
+      content:
+        `Begin teaching me the lesson "${lesson.title}" (its goal: ${lesson.goal}). ` +
+        `Give a one-line warm welcome that NAMES this lesson, then teach just the FIRST tiny piece of it ` +
+        `(one point + an example in « guillemets »), then immediately STOP and ask me to repeat, answer, or translate. ` +
+        `Stay on THIS lesson only; we'll go back and forth until it's complete.`,
+    }];
     await replyFromAI(view, chat);
-
-    // Show the interactive helper bar (reply hints + skip) under the chat.
     showLectureBar(view);
+  }
+
+  // Move to the next lesson in the syllabus (called after "✅ LESSON COMPLETE"
+  // or when the learner taps "Next lesson").
+  function advanceSyllabus(view) {
+    const lvl = lectureLevel || window.App.getState().level;
+    const list = syllabusFor(lvl);
+    const curIdx = lectureLesson ? list.findIndex((l) => l.id === lectureLesson.id) : syllabusPos(lvl);
+    const nextIdx = curIdx + 1;
+    if (nextIdx >= list.length) {
+      // Finished this level's syllabus.
+      const chat = view.querySelector("#chat");
+      addBubble(chat, "ai", `🎓 That's the whole ${lvl} syllabus done — great work! Switch to a higher level in 📚 Lessons, or tap 📑 Syllabus to revisit anything.`);
+      const bar = view.querySelector("#lectureBar"); if (bar) bar.remove();
+      return;
+    }
+    setSyllabusPos(lvl, nextIdx);
+    teachLessonByIndex(view, lvl, nextIdx);
+  }
+
+  // Mark the current lecture lesson complete (shared with the 📚 Lessons tab).
+  function markLessonDone() {
+    if (!lectureLesson) return;
+    const s = window.App.getState();
+    if (!s.lessonsDone) s.lessonsDone = {};
+    if (!s.lessonsDone[lectureLesson.id]) {
+      s.lessonsDone[lectureLesson.id] = true;
+      window.App.recordResult(lectureLesson.track === "Pronunciation" ? "pronunciation" : "reading", 80);
+      window.App.save();
+    }
   }
 
   // Interactive helper bar shown during a lecture. The class is now a back-and-forth,
@@ -268,18 +377,23 @@ window.Conversation = (function () {
   function showLectureBar(view) {
     const chat = view.querySelector("#chat");
     let bar = view.querySelector("#lectureBar");
-    if (bar) return;
+    if (bar) bar.remove(); // rebuild so the lesson label stays current
+    const lvl = lectureLevel || window.App.getState().level;
+    const list = syllabusFor(lvl);
+    const idx = lectureLesson ? list.findIndex((l) => l.id === lectureLesson.id) : -1;
+    const here = idx >= 0 ? `Lesson ${idx + 1}/${list.length} · ${escapeHtml(lectureLesson.title)}` : "Guided lesson";
     bar = document.createElement("div");
     bar.id = "lectureBar";
     bar.className = "row";
     bar.style.cssText = "justify-content:center;flex-wrap:wrap;margin-top:8px;gap:6px";
     bar.innerHTML = `
       <span class="muted" style="font-size:12px;width:100%;text-align:center">
-        👆 Answer the teacher above — type or tap 🎤. Quick replies:</span>
+        📘 ${here} — answer the teacher above (type or tap 🎤). Quick replies:</span>
       <button class="btn secondary" data-quick="✅ Got it!" style="padding:6px 10px;font-size:13px">✅ Got it</button>
       <button class="btn secondary" data-quick="I didn't understand — can you explain that differently?" style="padding:6px 10px;font-size:13px">🤔 Explain again</button>
       <button class="btn secondary" data-quick="Can you give me another example?" style="padding:6px 10px;font-size:13px">➕ Another example</button>
-      <button class="btn secondary" data-quick="Let's move on to the next thing." style="padding:6px 10px;font-size:13px">⏭️ Next</button>`;
+      <button class="btn secondary" data-quick="Let's move on to the next part of this lesson." style="padding:6px 10px;font-size:13px">⏭️ Next part</button>
+      ${idx >= 0 && idx < list.length - 1 ? `<button class="btn" id="nextLessonBtn" style="padding:6px 10px;font-size:13px">📗 Next lesson →</button>` : ""}`;
     chat.parentElement.insertBefore(bar, chat.nextSibling);
     bar.querySelectorAll("[data-quick]").forEach((b) =>
       b.addEventListener("click", async () => {
@@ -288,6 +402,34 @@ window.Conversation = (function () {
         await replyFromAI(view, chat);
       })
     );
+    const nlb = bar.querySelector("#nextLessonBtn");
+    if (nlb) nlb.addEventListener("click", () => { markLessonDone(); advanceSyllabus(view); });
+  }
+
+  // Shown when the AI signals the lesson is complete: a clear next-step prompt.
+  function showLessonCompleteBanner(view, afterBubble) {
+    const lvl = lectureLevel || window.App.getState().level;
+    const list = syllabusFor(lvl);
+    const idx = lectureLesson ? list.findIndex((l) => l.id === lectureLesson.id) : -1;
+    const hasNext = idx >= 0 && idx < list.length - 1;
+    const banner = document.createElement("div");
+    banner.className = "tip tip-ok";
+    banner.style.marginTop = "10px";
+    banner.innerHTML = `✅ <strong>Lesson complete!</strong> Marked done in your course.${
+      hasNext
+        ? ` Next up — lesson ${idx + 2}/${list.length}: <strong>${escapeHtml(list[idx + 1].title)}</strong>.`
+        : ` That's the last ${lvl} lesson.`
+    }<div class="row" style="justify-content:center;margin-top:8px;gap:6px">
+        ${hasNext ? `<button class="btn" id="bannerNext" style="padding:6px 12px;font-size:13px">📗 Start next lesson →</button>` : ""}
+        <button class="btn secondary" id="bannerReview" style="padding:6px 12px;font-size:13px">↻ Review this one</button>
+      </div>`;
+    afterBubble.appendChild(banner);
+    const bn = banner.querySelector("#bannerNext");
+    if (bn) bn.addEventListener("click", () => advanceSyllabus(view));
+    const br = banner.querySelector("#bannerReview");
+    if (br) br.addEventListener("click", () => teachLessonByIndex(view, lvl, idx));
+    // Refresh the lecture bar so its label/Next-lesson button stay in sync.
+    showLectureBar(view);
   }
 
   /* ----- Conversation scenarios (role-play) ----- */
@@ -396,6 +538,13 @@ window.Conversation = (function () {
         const k = rest.indexOf("🎯");
         if (k !== -1) { scenarioFeedback = rest.slice(k + 2).trim(); rest = rest.slice(0, k).trim(); }
       }
+      // In a lecture, detect the "✅ LESSON COMPLETE" marker. Strip it from what's
+      // shown, mark the lesson done, and offer the next lesson in the syllabus.
+      let lessonJustFinished = false;
+      if (lectureMode) {
+        const m = rest.match(/✅\s*LESSON COMPLETE/i);
+        if (m) { lessonJustFinished = true; rest = rest.replace(/✅\s*LESSON COMPLETE/i, "").trim(); }
+      }
       // Split off the optional "🔧 ..." correction line into a styled note.
       const { body, correction } = splitCorrection(rest);
       const mainBody = body;
@@ -414,6 +563,11 @@ window.Conversation = (function () {
         f.style.marginTop = "8px";
         f.textContent = "🎯 " + scenarioFeedback;
         typing.appendChild(f);
+      }
+      // Lesson finished → mark complete + show a clear "next lesson" prompt.
+      if (lessonJustFinished) {
+        markLessonDone();
+        showLessonCompleteBanner(view, typing);
       }
       // In a lecture, read the whole thing slowly in both languages.
       // In normal chat / scenario, speak only the French phrases.
