@@ -350,3 +350,40 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
   .level-block > summary { padding: 12px 12px; flex-wrap: wrap; }
   .level-body { padding: 4px 12px 14px; }
 }
+
+/* ===== Verbs tab: conjugation tables + drills ===== */
+.verb-table {
+  margin: 14px 0 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.verb-row {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; text-align: left;
+  padding: 11px 14px;
+  background: var(--card);
+  border: none; border-bottom: 1px solid var(--line);
+  color: var(--text); cursor: pointer; font-size: 16px;
+}
+.verb-row:last-child { border-bottom: none; }
+.verb-row:hover { background: var(--card-2); }
+.vr-pro { color: var(--muted); min-width: 84px; }
+.vr-form { font-weight: 600; flex: 1; }
+.vr-spk { opacity: .55; font-size: 14px; }
+.verb-example {
+  margin-top: 12px; padding: 10px 12px;
+  background: var(--card-2); border-radius: 10px;
+  border-left: 3px solid var(--accent-2); font-size: 15px;
+}
+.verb-q { font-size: 20px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.verb-input {
+  flex: 1; min-width: 140px;
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 12px; font-size: 18px;
+}
+.verb-input:focus { outline: none; border-color: var(--blue); }
+.verb-input:disabled { opacity: .7; }
+.tip.tip-ok { background: rgba(62,201,138,.18); border-color: var(--good); }
+.tip.tip-bad { background: rgba(239,93,106,.18); border-color: var(--bad); }

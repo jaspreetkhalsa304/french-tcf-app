@@ -496,6 +496,7 @@ window.App = (function () {
     if (window.Basics) registerView("basics", window.Basics.render);
     if (window.Lessons) registerView("lessons", window.Lessons.render);
     if (window.Grammar) registerView("grammar", window.Grammar.render);
+    if (window.Verbs) registerView("verbs", window.Verbs.render);
     if (window.Pronunciation) registerView("pronunciation", window.Pronunciation.render);
     if (window.Conversation) registerView("conversation", window.Conversation.render);
     if (window.Listening) registerView("listening", window.Listening.render);
