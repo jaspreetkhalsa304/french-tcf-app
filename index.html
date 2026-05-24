@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#1b2a4a" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>Parle — French TCF Prep (A1 → C1)</title>
+  <link rel="stylesheet" href="css/styles.css?v=25" />
+</head>
+<body>
+  <!-- ===== Top bar ===== -->
+  <header id="topbar">
+    <div class="brand">
+      <span class="logo">🇫🇷</span>
+      <div>
+        <h1>Parle</h1>
+        <span class="tagline">TCF prep · speak · listen · type</span>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="level-chip" id="levelChip" title="Your current level">
+        <span class="level-label">Niveau</span>
+        <span class="level-value" id="levelValue">A1</span>
+      </div>
+      <div class="xp-chip" id="xpChip" title="Experience points">
+        <span id="xpValue">0</span> XP
+      </div>
+      <button id="settingsBtn" class="icon-btn" title="Settings" aria-label="Settings">⚙️</button>
+    </div>
+  </header>
+
+  <!-- ===== Tab navigation ===== -->
+  <nav id="tabbar">
+    <button class="tab active" data-view="home">🏠 <span>Home</span></button>
+    <button class="tab" data-view="basics">🔤 <span>Basics</span></button>
+    <button class="tab" data-view="lessons">📚 <span>Lessons</span></button>
+    <button class="tab" data-view="grammar">🧩 <span>Grammar</span></button>
+    <button class="tab" data-view="pronunciation">🗣️ <span>Speak</span></button>
+    <button class="tab" data-view="conversation">💬 <span>Talk</span></button>
+    <button class="tab" data-view="listening">🎧 <span>Listen</span></button>
+    <button class="tab" data-view="reading">📖 <span>Read</span></button>
+    <button class="tab" data-view="writing">✍️ <span>Write</span></button>
+    <button class="tab" data-view="mocktest">📝 <span>Mock</span></button>
+    <button class="tab" data-view="progress">📈 <span>Progress</span></button>
+  </nav>
+
+  <!-- ===== Main view container (modules render here) ===== -->
+  <main id="view"></main>
+
+  <!-- ===== Settings modal ===== -->
+  <div id="settingsModal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2>Settings</h2>
+        <button id="settingsClose" class="icon-btn" aria-label="Close">✕</button>
+      </div>
+
+      <div class="setting-group">
+        <label for="apiKeyInput">Anthropic API key</label>
+        <p class="hint">
+          Powers the AI tutor (conversation, generated lessons, writing &amp; speaking grading).
+          Stored only in this browser. Lessons, pronunciation scoring and audio work without it.
+        </p>
+        <div class="key-row">
+          <input type="password" id="apiKeyInput" placeholder="sk-ant-..." autocomplete="off" />
+          <button id="apiKeyToggle" class="ghost-btn" title="Show / hide">👁️</button>
+        </div>
+        <div id="apiKeyStatus" class="key-status"></div>
+      </div>
+
+      <div class="setting-group">
+        <label><input type="checkbox" id="neuralToggle" style="margin-right:8px;vertical-align:middle" />Use human-like neural voice ✨</label>
+        <p class="hint" id="neuralHint">Free natural-sounding voices (no API key). When off, uses the built-in Mac voices below.</p>
+        <div class="row" style="margin-top:6px">
+          <button id="testNeuralBtn" class="ghost-btn">🔊 Test neural (FR + EN)</button>
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <label for="voiceSelect">French voice (text-to-speech)</label>
+        <select id="voiceSelect"></select>
+        <div class="row" style="margin-top:8px">
+          <button id="testVoiceBtn" class="ghost-btn">🔊 Test voice</button>
+          <button id="refreshVoicesBtn" class="ghost-btn">↻ Refresh list</button>
+        </div>
+        <p class="hint" id="voiceHint" style="margin-top:8px"></p>
+      </div>
+
+      <div class="setting-group">
+        <label for="enVoiceSelect">English voice (lecture narration)</label>
+        <select id="enVoiceSelect"></select>
+        <div class="row" style="margin-top:8px">
+          <button id="testEnVoiceBtn" class="ghost-btn">🔊 Test voice</button>
+        </div>
+        <p class="hint" id="enVoiceHint" style="margin-top:8px"></p>
+      </div>
+
+      <div class="setting-group">
+        <label><input type="checkbox" id="femaleToggle" style="margin-right:8px;vertical-align:middle" />Prefer female voices</label>
+        <p class="hint">Auto-pick female voices for both French and English (you can still override each above).</p>
+      </div>
+
+      <div class="setting-group">
+        <label><input type="checkbox" id="oneVoiceToggle" style="margin-right:8px;vertical-align:middle" />Use ONE voice for both languages</label>
+        <p class="hint">Same voice persona speaks French and English (a multilingual female voice). Overrides the two pickers above.</p>
+        <select id="familySelect" style="margin-top:6px"></select>
+        <div class="row" style="margin-top:8px">
+          <button id="testFamilyBtn" class="ghost-btn">🔊 Test (FR + EN)</button>
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <label for="rateSlider">Speech speed: <span id="rateLabel">0.9×</span></label>
+        <input type="range" id="rateSlider" min="0.5" max="1.2" step="0.05" value="0.9" />
+      </div>
+
+      <div class="setting-group">
+        <label>Reset</label>
+        <p class="hint">Clear all progress, XP and level on this device.</p>
+        <button id="resetBtn" class="danger-btn">Reset all progress</button>
+      </div>
+
+      <div class="setting-group small">
+        <p class="hint">
+          <strong>Browser tip:</strong> speech recognition (scoring your own voice) works in
+          <strong>Chrome</strong> or <strong>Edge</strong>. Other browsers still play audio and chat.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Toast ===== -->
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- Puter.js — free neural text-to-speech (AWS Polly voices), no API key. -->
+  <script src="https://js.puter.com/v2/"></script>
+
+  <!-- Anthropic SDK (browser build) -->
+  <script type="module">
+    import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.69.0";
+    window.Anthropic = Anthropic;
+    window.dispatchEvent(new Event("anthropic-ready"));
+  </script>
+
+  <!-- App modules (?v= cache-buster — bump when files change) -->
+  <script src="data/curriculum.js?v=25"></script>
+  <script src="data/tcf_tasks.js?v=25"></script>
+  <script src="data/basics.js?v=25"></script>
+  <script src="data/lessons.js?v=25"></script>
+  <script src="js/speech.js?v=25"></script>
+  <script src="js/wordbank.js?v=25"></script>
+  <script src="js/claude.js?v=25"></script>
+  <script src="js/basics.js?v=25"></script>
+  <script src="js/lessons.js?v=25"></script>
+  <script src="js/grammar.js?v=25"></script>
+  <script src="js/pronunciation.js?v=25"></script>
+  <script src="js/conversation.js?v=25"></script>
+  <script src="js/listening.js?v=25"></script>
+  <script src="js/reading.js?v=25"></script>
+  <script src="js/writing.js?v=25"></script>
+  <script src="js/mocktest.js?v=25"></script>
+  <script src="js/placement.js?v=25"></script>
+  <script src="js/app.js?v=25"></script>
+</body>
+</html>
