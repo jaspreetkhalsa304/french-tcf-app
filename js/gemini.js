@@ -256,6 +256,20 @@ window.Gemini = (function () {
     }
   }
 
+  /* Self-test: a tiny text-only request to check the key actually works, so the user
+   * can verify it in Settings without opening DevTools. Resolves with
+   * { ok:true } or { ok:false, message } (a human-readable reason). */
+  async function testKey() {
+    if (!hasKey()) return { ok: false, message: "No key entered yet." };
+    try {
+      const text = await generate([{ text: "Reply with exactly: OK" }], { maxOutputTokens: 16, noThinking: true });
+      if ((text || "").trim().length) return { ok: true };
+      return { ok: false, message: "Key works but the model returned nothing. Try again." };
+    } catch (e) {
+      return { ok: false, message: describeError(e) };
+    }
+  }
+
   /* Friendly error message for the UI. */
   function describeError(e) {
     const msg = (e && e.message) || String(e);
@@ -276,6 +290,6 @@ window.Gemini = (function () {
   return {
     MODEL, hasKey, getKey,
     recordingSupported, recordClip, stopRecording, isRecording,
-    transcribe, transcribeAndGrade, describeError, parseJSON,
+    transcribe, transcribeAndGrade, testKey, describeError, parseJSON,
   };
 })();

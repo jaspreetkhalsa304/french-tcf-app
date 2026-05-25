@@ -594,20 +594,27 @@ window.Speech = (function () {
     level = level || (window.App && window.App.getState().level) || "A1";
 
     if (geminiActive()) {
-      const { b64, mime } = await window.Gemini.recordClip(onState, { silenceMs: 1800 });
-      onState && onState("processing");
-      const g = await window.Gemini.transcribeAndGrade(target, level, b64, mime);
-      if (g) {
-        return {
-          score: g.score,
-          words: g.words.map((w) => ({ word: w.word, ok: w.ok })),
-          heard: g.heard,
-          aiNote: g.note,
-        };
+      try {
+        const { b64, mime } = await window.Gemini.recordClip(onState, { silenceMs: 1800 });
+        onState && onState("processing");
+        const g = await window.Gemini.transcribeAndGrade(target, level, b64, mime);
+        if (g) {
+          return {
+            score: g.score,
+            words: g.words.map((w) => ({ word: w.word, ok: w.ok })),
+            heard: g.heard,
+            aiNote: g.note,
+          };
+        }
+        // Grading returned nothing — try a plain transcript, else local score on "".
+        const t = await window.Gemini.transcribe(b64, mime).catch(() => "");
+        return scorePronunciation(target, t);
+      } catch (e) {
+        if (e && (e.message === "not-allowed" || e.message === "unsupported")) throw e;
+        console.warn("[Speech] Gemini scoring failed, falling back to Web Speech:", e && e.message);
+        if (!sttSupported) throw e; // nothing to fall back to
+        // fall through to Web Speech path below
       }
-      // Gemini transcribe/grade failed — fall back to a plain transcript + local score.
-      const t = await window.Gemini.transcribe(b64, mime).catch(() => "");
-      return scorePronunciation(target, t);
     }
 
     // Web Speech path (Chrome/Edge), with optional lenient Claude re-grade.
@@ -630,16 +637,30 @@ window.Speech = (function () {
   }
 
   /* Capture a spoken French phrase and return just the transcript text (for the Talk
-   * mic). Routes through Gemini when its key is set, else Web Speech. */
+   * mic). Routes through Gemini when its key is set, else Web Speech. If Gemini fails
+   * (bad key, network, API not enabled) it AUTO-FALLS-BACK to Web Speech so the mic
+   * keeps working — never leaving the user with a dead "Mic error". */
   async function captureTranscript(onState, opts = {}) {
+    const silenceMs = opts.silenceMs != null ? opts.silenceMs : 3000;
     if (geminiActive()) {
-      const { b64, mime } = await window.Gemini.recordClip(onState, { silenceMs: opts.silenceMs != null ? opts.silenceMs : 3000 });
-      onState && onState("processing");
-      captureTranscript._alternatives = [];
-      return window.Gemini.transcribe(b64, mime);
+      try {
+        const { b64, mime } = await window.Gemini.recordClip(onState, { silenceMs });
+        onState && onState("processing");
+        captureTranscript._alternatives = [];
+        const t = await window.Gemini.transcribe(b64, mime);
+        captureTranscript._lastEngine = "gemini";
+        return t;
+      } catch (e) {
+        // Mic-permission problems are real and shouldn't be masked — rethrow those.
+        if (e && (e.message === "not-allowed" || e.message === "unsupported")) throw e;
+        // Otherwise (Gemini key/network/API error) fall back to Web Speech if we can.
+        console.warn("[Speech] Gemini transcription failed, falling back to Web Speech:", e && e.message);
+        if (!sttSupported) throw e; // no fallback available in this browser
+      }
     }
-    const t = await listen(onState, Object.assign({ continuous: true, silenceMs: 3000 }, opts));
+    const t = await listen(onState, Object.assign({ continuous: true, silenceMs }, opts));
     captureTranscript._alternatives = lastAlternatives();
+    captureTranscript._lastEngine = "webspeech";
     return t;
   }
   /* Alternatives from the most recent captureTranscript (empty for the Gemini path). */

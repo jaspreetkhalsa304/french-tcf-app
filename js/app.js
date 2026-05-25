@@ -431,6 +431,20 @@ window.App = (function () {
         gemInput.type = gemInput.type === "password" ? "text" : "password";
       });
     }
+    const gemTest = document.getElementById("geminiTestBtn");
+    if (gemTest) {
+      gemTest.addEventListener("click", async () => {
+        const el = document.getElementById("geminiKeyStatus");
+        gemTest.disabled = true;
+        if (el) { el.textContent = "Testing…"; el.className = "key-status"; }
+        const r = await window.Gemini.testKey();
+        if (el) {
+          el.textContent = r.ok ? "✓ Gemini key works — voice scoring is ready." : "✗ " + r.message;
+          el.className = "key-status " + (r.ok ? "ok" : "off");
+        }
+        gemTest.disabled = false;
+      });
+    }
 
     document.getElementById("voiceSelect").addEventListener("change", (e) => {
       localStorage.setItem("tcf_voice", e.target.value);
