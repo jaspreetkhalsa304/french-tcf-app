@@ -500,6 +500,7 @@ window.App = (function () {
     document.getElementById("resetBtn").addEventListener("click", () => {
       if (confirm("Clear all progress, XP and level on this device?")) {
         localStorage.removeItem("tcf_state");
+        localStorage.removeItem("tcf_talk_session"); // drop the saved AI-tutor conversation too
         state = JSON.parse(JSON.stringify(defaultState));
         save();
         closeSettings();

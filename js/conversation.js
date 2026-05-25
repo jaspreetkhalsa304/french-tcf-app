@@ -12,6 +12,98 @@ window.Conversation = (function () {
   let lectureLesson = null; // the SPECIFIC syllabus lesson currently being taught (object)
   let scenarioMode = false; // when true, AI role-plays a scenario partner
   let activeScenario = null; // the scenario object being role-played
+  let bubbleLog = []; // [{who, text}] — the visible transcript, so a refresh can rebuild it
+
+  /* ===== Session persistence =====
+   * The chat transcript + lecture state used to live only in memory, so a page
+   * refresh dropped you back at Camille's generic greeting even though your syllabus
+   * position was saved. We now persist the live conversation to localStorage and
+   * restore it on load, so you resume exactly where you left off. */
+  const SESSION_KEY = "tcf_talk_session";
+  function saveSession() {
+    try {
+      const data = {
+        v: 1,
+        bubbleLog,
+        messages,
+        lectureMode,
+        lectureLevel,
+        lectureLessonId: lectureLesson ? lectureLesson.id : null,
+        scenarioMode,
+        activeScenarioId: activeScenario ? activeScenario.id : null,
+        level: window.App.getState().level,
+      };
+      localStorage.setItem(SESSION_KEY, JSON.stringify(data));
+    } catch (_) { /* quota / serialization — non-fatal */ }
+  }
+  function loadSession() {
+    try {
+      const raw = localStorage.getItem(SESSION_KEY);
+      if (!raw) return null;
+      const d = JSON.parse(raw);
+      if (!d || d.v !== 1 || !Array.isArray(d.bubbleLog) || !d.bubbleLog.length) return null;
+      return d;
+    } catch (_) { return null; }
+  }
+  function clearSession() {
+    bubbleLog = [];
+    try { localStorage.removeItem(SESSION_KEY); } catch (_) {}
+  }
+
+  /* Rebuild one AI bubble from a saved log entry (body + optional 🔧 correction and
+   * 🎯 scenario feedback), matching how replyFromAI renders a live one. */
+  function replayAiBubble(chat, entry) {
+    const b = document.createElement("div");
+    b.className = "bubble ai";
+    b.appendChild(renderRichAI(entry.text, false));
+    if (entry.correction) {
+      const c = document.createElement("div");
+      c.className = "corrections";
+      c.textContent = "🔧 " + entry.correction;
+      b.appendChild(c);
+    }
+    if (entry.feedback) {
+      const f = document.createElement("div");
+      f.className = "tip";
+      f.style.marginTop = "8px";
+      f.textContent = "🎯 " + entry.feedback;
+      b.appendChild(f);
+    }
+    chat.appendChild(b);
+  }
+
+  /* Restore a saved Talk session into the freshly-rendered view. Returns true if a
+   * session was restored (so render() skips the generic greeting). */
+  function restoreSession(view) {
+    const d = loadSession();
+    if (!d) return false;
+    // Only restore if it belongs to the current level (avoids a stale lecture from a
+    // different level after the learner changed levels).
+    if (d.level && d.level !== window.App.getState().level) { clearSession(); return false; }
+
+    bubbleLog = d.bubbleLog.slice();
+    messages = Array.isArray(d.messages) ? d.messages.slice() : [];
+    lectureMode = !!d.lectureMode;
+    lectureLevel = d.lectureLevel || null;
+    lectureLesson = d.lectureLessonId
+      ? syllabusFor(lectureLevel || window.App.getState().level).find((l) => l.id === d.lectureLessonId) || null
+      : null;
+    scenarioMode = !!d.scenarioMode;
+    activeScenario = d.activeScenarioId && window.TCF.scenarios
+      ? window.TCF.scenarios.find((s) => s.id === d.activeScenarioId) || null
+      : null;
+
+    const chat = view.querySelector("#chat");
+    chat.innerHTML = "";
+    for (const entry of bubbleLog) {
+      if (entry.who === "ai") replayAiBubble(chat, entry);
+      else addBubble(chat, entry.who, entry.text, true); // noLog — already in bubbleLog
+    }
+    chat.scrollTop = chat.scrollHeight;
+    // If we were mid-lecture, bring back the helper bar.
+    if (lectureMode && lectureLesson) showLectureBar(view);
+    return true;
+  }
 
   /* ===== Syllabus: the AI tutor teaches the REAL lessons, in order =====
    * The Talk-tab lectures used to improvise from a loose topic list, so they
@@ -144,6 +236,7 @@ window.Conversation = (function () {
     lectureLesson = null;
     scenarioMode = false;
     activeScenario = null;
+    bubbleLog = [];
     const s = window.App.getState();
     const keyOn = window.AI.hasKey();
     const tasks = window.TCF.speakingTasks.filter((t) => allowed(t.minLevel, s.level));
@@ -212,9 +305,13 @@ window.Conversation = (function () {
     );
 
     if (keyOn) {
-      const greet = `Hello! I'm Camille, your French tutor. 👋 I'll explain in English and teach you French step by step. Let's start: « Bonjour ! Comment t'appelles-tu ? » (Hello! What's your name?) — you can answer in French or English.`;
-      addBubble(chat, "ai", greet);
-      window.Speech.speak("Bonjour ! Comment t'appelles-tu ?");
+      // Resume a saved conversation if one exists; otherwise greet fresh.
+      const resumed = restoreSession(view);
+      if (!resumed) {
+        const greet = `Hello! I'm Camille, your French tutor. 👋 I'll explain in English and teach you French step by step. Let's start: « Bonjour ! Comment t'appelles-tu ? » (Hello! What's your name?) — you can answer in French or English.`;
+        addBubble(chat, "ai", greet);
+        window.Speech.speak("Bonjour ! Comment t'appelles-tu ?");
+      }
 
       view.querySelector("#sendBtn").addEventListener("click", () => send(view));
       input.addEventListener("keydown", (e) => {
@@ -328,6 +425,7 @@ window.Conversation = (function () {
     if (box) box.classList.add("hidden");
     const chat = view.querySelector("#chat");
     chat.innerHTML = "";
+    bubbleLog = []; // starting a fresh lesson — drop the prior transcript
 
     addBubble(chat, "ai",
       `👩‍🏫 Lesson ${idx + 1} of ${list.length} · ${lvl}\n\n` +
@@ -473,6 +571,7 @@ window.Conversation = (function () {
     lectureMode = false;
     const chat = view.querySelector("#chat");
     chat.innerHTML = "";
+    bubbleLog = []; // fresh scenario — drop the prior transcript
     // Remove any lingering lecture bar.
     const bar = view.querySelector("#lectureBar");
     if (bar) bar.remove();
@@ -494,8 +593,11 @@ window.Conversation = (function () {
   function startTask(view, taskId) {
     const task = window.TCF.speakingTasks.find((t) => t.id === taskId);
     if (!task) return;
+    lectureMode = false; scenarioMode = false; activeScenario = null; lectureLesson = null;
+    const bar = view.querySelector("#lectureBar"); if (bar) bar.remove();
     const chat = view.querySelector("#chat");
     chat.innerHTML = "";
+    bubbleLog = []; // fresh task — drop the prior transcript
     const intro = `${task.title} — ${task.sub}\n\n${task.instruction}`;
     addBubble(chat, "ai", intro);
     addNote(chat, task.en);
@@ -575,6 +677,10 @@ window.Conversation = (function () {
         markLessonDone();
         showLessonCompleteBanner(view, typing);
       }
+      // Record this AI turn in the transcript (the bubble was built piecemeal above,
+      // bypassing addBubble's logging) so a refresh can rebuild it faithfully.
+      bubbleLog.push({ who: "ai", text: mainBody, correction: correction || "", feedback: scenarioFeedback || "", complete: lessonJustFinished });
+      saveSession();
       // In a lecture, read the whole thing slowly in both languages.
       // In normal chat / scenario, speak only the French phrases.
       if (lectureMode) window.Speech.speakBilingual(mainBody);
@@ -811,13 +917,16 @@ window.Conversation = (function () {
     closeWordPopover();
   });
 
-  function addBubble(chat, who, text) {
+  function addBubble(chat, who, text, noLog) {
     const b = document.createElement("div");
     b.className = "bubble " + who;
     if (who === "ai") b.appendChild(renderRichAI(text));
     else b.textContent = text;
     chat.appendChild(b);
     chat.scrollTop = chat.scrollHeight;
+    // Record in the transcript so a refresh can rebuild it (skip the "…" typing
+    // placeholder and any replay during restore).
+    if (!noLog && text !== "…") { bubbleLog.push({ who, text }); saveSession(); }
     return b;
   }
   function addNote(chat, en) {
