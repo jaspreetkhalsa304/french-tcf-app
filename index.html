@@ -8,7 +8,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Parle — French TCF Prep (A1 → C1)</title>
-  <link rel="stylesheet" href="css/styles.css?v=32" />
+  <link rel="stylesheet" href="css/styles.css?v=33" />
 </head>
 <body>
   <!-- ===== Top bar ===== -->
@@ -96,6 +96,16 @@
       </div>
 
       <div class="setting-group">
+        <label><input type="checkbox" id="neuralOneToggle" style="margin-right:8px;vertical-align:middle" />One voice for both languages 👩‍🏫</label>
+        <p class="hint">The same neural voice teaches in English <em>and</em> models French, so your tutor sounds like one person. On by default. (Applies to the neural voice above.)</p>
+        <label for="neuralVoiceSelect" style="margin-top:6px;display:block">Tutor voice</label>
+        <select id="neuralVoiceSelect"></select>
+        <div class="row" style="margin-top:8px">
+          <button id="testNeuralOneBtn" class="ghost-btn">🔊 Test (English → French)</button>
+        </div>
+      </div>
+
+      <div class="setting-group">
         <label for="voiceSelect">French voice (text-to-speech)</label>
         <select id="voiceSelect"></select>
         <div class="row" style="margin-top:8px">
@@ -164,26 +174,26 @@
   </script>
 
   <!-- App modules (?v= cache-buster — bump when files change) -->
-  <script src="data/curriculum.js?v=32"></script>
-  <script src="data/tcf_tasks.js?v=32"></script>
-  <script src="data/basics.js?v=32"></script>
-  <script src="data/lessons.js?v=32"></script>
-  <script src="data/verbs.js?v=32"></script>
-  <script src="js/speech.js?v=32"></script>
-  <script src="js/gemini.js?v=32"></script>
-  <script src="js/wordbank.js?v=32"></script>
-  <script src="js/claude.js?v=32"></script>
-  <script src="js/basics.js?v=32"></script>
-  <script src="js/lessons.js?v=32"></script>
-  <script src="js/grammar.js?v=32"></script>
-  <script src="js/verbs.js?v=32"></script>
-  <script src="js/pronunciation.js?v=32"></script>
-  <script src="js/conversation.js?v=32"></script>
-  <script src="js/listening.js?v=32"></script>
-  <script src="js/reading.js?v=32"></script>
-  <script src="js/writing.js?v=32"></script>
-  <script src="js/mocktest.js?v=32"></script>
-  <script src="js/placement.js?v=32"></script>
-  <script src="js/app.js?v=32"></script>
+  <script src="data/curriculum.js?v=33"></script>
+  <script src="data/tcf_tasks.js?v=33"></script>
+  <script src="data/basics.js?v=33"></script>
+  <script src="data/lessons.js?v=33"></script>
+  <script src="data/verbs.js?v=33"></script>
+  <script src="js/speech.js?v=33"></script>
+  <script src="js/gemini.js?v=33"></script>
+  <script src="js/wordbank.js?v=33"></script>
+  <script src="js/claude.js?v=33"></script>
+  <script src="js/basics.js?v=33"></script>
+  <script src="js/lessons.js?v=33"></script>
+  <script src="js/grammar.js?v=33"></script>
+  <script src="js/verbs.js?v=33"></script>
+  <script src="js/pronunciation.js?v=33"></script>
+  <script src="js/conversation.js?v=33"></script>
+  <script src="js/listening.js?v=33"></script>
+  <script src="js/reading.js?v=33"></script>
+  <script src="js/writing.js?v=33"></script>
+  <script src="js/mocktest.js?v=33"></script>
+  <script src="js/placement.js?v=33"></script>
+  <script src="js/app.js?v=33"></script>
 </body>
 </html>

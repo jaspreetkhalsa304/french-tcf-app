@@ -276,6 +276,9 @@ window.App = (function () {
     if (fem) fem.checked = localStorage.getItem("tcf_female") !== "0";
     const one = document.getElementById("oneVoiceToggle");
     if (one) one.checked = localStorage.getItem("tcf_one_voice") === "1";
+    const nOne = document.getElementById("neuralOneToggle");
+    if (nOne) nOne.checked = window.Speech.neuralOneVoice();
+    populateNeuralVoices();
     populateVoices();
     populateFamilies();
     const rate = parseFloat(localStorage.getItem("tcf_rate") || "0.9");
@@ -368,6 +371,23 @@ window.App = (function () {
     }
   }
 
+  function populateNeuralVoices() {
+    const sel = document.getElementById("neuralVoiceSelect");
+    if (!sel) return;
+    const cur = window.Speech.neuralVoiceName();
+    const labels = {
+      Danielle: "Danielle (female) — recommended",
+      Lea: "Léa (female, French-first)",
+      Joanna: "Joanna (female)",
+      Ruth: "Ruth (female)",
+      Matthew: "Matthew (male)",
+      Stephen: "Stephen (male)",
+    };
+    sel.innerHTML = window.Speech.NEURAL_BILINGUAL
+      .map((v) => `<option value="${v}" ${v === cur ? "selected" : ""}>${labels[v] || v}</option>`)
+      .join("");
+  }
+
   function populateFamilies() {
     const sel = document.getElementById("familySelect");
     if (!sel) return;
@@ -452,6 +472,31 @@ window.App = (function () {
     const neuralTest = document.getElementById("testNeuralBtn");
     if (neuralTest) {
       neuralTest.addEventListener("click", () =>
+        window.Speech.speakBilingual("Hello, I will teach you French. « Bonjour, je vais vous apprendre le français. »")
+      );
+    }
+
+    const neuralOne = document.getElementById("neuralOneToggle");
+    if (neuralOne) {
+      neuralOne.addEventListener("change", () => {
+        localStorage.setItem("tcf_neural_one", neuralOne.checked ? "1" : "0");
+        toast(neuralOne.checked ? "One voice teaches both languages." : "Separate French/English neural voices.");
+        window.Speech.speakBilingual("Hi, I'm your tutor. « Bonjour, je suis votre professeur. »");
+      });
+    }
+    const neuralVoiceSel = document.getElementById("neuralVoiceSelect");
+    if (neuralVoiceSel) {
+      neuralVoiceSel.addEventListener("change", (e) => {
+        localStorage.setItem("tcf_neural_voice", e.target.value);
+        // Choosing a tutor voice implies you want the one-voice mode on.
+        localStorage.setItem("tcf_neural_one", "1");
+        const t = document.getElementById("neuralOneToggle"); if (t) t.checked = true;
+        window.Speech.speakBilingual("This is your tutor voice. « Voici la voix de votre professeur. »");
+      });
+    }
+    const neuralOneTest = document.getElementById("testNeuralOneBtn");
+    if (neuralOneTest) {
+      neuralOneTest.addEventListener("click", () =>
         window.Speech.speakBilingual("Hello, I will teach you French. « Bonjour, je vais vous apprendre le français. »")
       );
     }

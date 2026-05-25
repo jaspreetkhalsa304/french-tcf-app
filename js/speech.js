@@ -11,7 +11,20 @@ window.Speech = (function () {
    * Far more human than the macOS built-in voices. We route French/English
    * speech through it when available, and fall back to SpeechSynthesis on any
    * error (offline, blocked, etc.) so the app always speaks. */
-  const NEURAL_VOICE = { fr: "Lea", en: "Joanna" }; // female neural personas
+  const NEURAL_VOICE = { fr: "Lea", en: "Joanna" }; // split-mode personas (one each)
+  /* ONE multilingual Polly voice that speaks BOTH languages, so the tutor sounds
+   * like a single person whether explaining in English or modelling French. These
+   * are generative/neural Polly voices that handle en-US AND fr-FR; we keep the same
+   * voice and just switch the `language` field per phrase. Default: Danielle. */
+  const NEURAL_BILINGUAL = ["Danielle", "Lea", "Matthew", "Joanna", "Ruth", "Stephen"];
+  function neuralOneVoice() {
+    // Default ON — one voice for both languages. Set tcf_neural_one="0" to split.
+    return localStorage.getItem("tcf_neural_one") !== "0";
+  }
+  function neuralVoiceName() {
+    const stored = localStorage.getItem("tcf_neural_voice");
+    return (stored && NEURAL_BILINGUAL.includes(stored)) ? stored : "Danielle";
+  }
   function neuralAvailable() {
     return !!(window.puter && window.puter.ai && window.puter.ai.txt2speech);
   }
@@ -29,8 +42,10 @@ window.Speech = (function () {
   function speakNeural(text, langStr, rate) {
     return new Promise((resolve, reject) => {
       const key = langKey(langStr);
+      // One voice for both languages (default) vs the older split fr/en personas.
+      const voiceName = neuralOneVoice() ? neuralVoiceName() : NEURAL_VOICE[key];
       const opts = {
-        voice: NEURAL_VOICE[key],
+        voice: voiceName,
         engine: "neural",
         language: key === "fr" ? "fr-FR" : "en-US",
       };
@@ -653,6 +668,9 @@ window.Speech = (function () {
     cancel,
     neuralAvailable,
     useNeural,
+    neuralOneVoice,
+    neuralVoiceName,
+    NEURAL_BILINGUAL,
     listen,
     stopListening,
     isListening,
