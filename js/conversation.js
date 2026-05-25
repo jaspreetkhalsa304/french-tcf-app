@@ -718,7 +718,13 @@ window.Conversation = (function () {
     } catch (e) {
       mic.classList.remove("recording");
       mic.title = "Speak";
-      window.App.toast(e.message === "no-speech" ? "Didn't catch that — try again." : "Mic error.");
+      console.error("[Talk mic] capture failed:", e); // exact cause in DevTools
+      // Surface the real reason (was a generic "Mic error" that hid permission /
+      // Gemini-key / network failures).
+      const msg = (window.Gemini && window.Gemini.describeError)
+        ? window.Gemini.describeError(e)
+        : ((e && e.message) || "Mic error.");
+      window.App.toast(msg);
     }
   }
 

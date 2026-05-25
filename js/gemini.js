@@ -147,13 +147,16 @@ window.Gemini = (function () {
   }
 
   /* ----- Gemini REST call ----- */
-  async function generate(parts, { jsonSchema = null, maxOutputTokens = 700 } = {}) {
+  async function generate(parts, { jsonSchema = null, maxOutputTokens = 700, noThinking = false } = {}) {
     const key = getKey();
     if (!key) throw new Error("no-key");
     const body = {
       contents: [{ role: "user", parts }],
       generationConfig: { maxOutputTokens, temperature: 0 },
     };
+    // gemini-2.5-flash is a thinking model; for mechanical tasks (plain transcription)
+    // disable thinking so the token budget isn't burned on reasoning, returning empty.
+    if (noThinking) body.generationConfig.thinkingConfig = { thinkingBudget: 0 };
     if (jsonSchema) {
       body.generationConfig.responseMimeType = "application/json";
       body.generationConfig.responseSchema = jsonSchema;
@@ -198,7 +201,7 @@ window.Gemini = (function () {
         "they said, with correct French spelling and accents — no quotes, no commentary, " +
         "no translation. If the audio is silent or unintelligible, output an empty string." },
       { inlineData: { mimeType: mime || "audio/webm", data: b64 } },
-    ], { maxOutputTokens: 300 });
+    ], { maxOutputTokens: 256, noThinking: true });
     return (text || "").replace(/^["'\s]+|["'\s]+$/g, "").trim();
   }
 
@@ -260,8 +263,13 @@ window.Gemini = (function () {
     if (msg === "unsupported") return "This browser can't record audio.";
     if (msg === "not-allowed") return "Microphone permission denied. Allow the mic and retry.";
     if (msg === "no-speech") return "Didn't catch any audio — try again, a bit louder.";
-    if (/^4\d\d/.test(msg) && /key|API_KEY|invalid/i.test(msg)) return "Your Gemini key was rejected. Check it in Settings.";
+    if (msg === "mic-error" || msg === "record-error") return "Couldn't access the microphone. Check it's connected and the tab has mic permission.";
+    if (msg === "read-error") return "Couldn't read the recorded audio — try again.";
+    if (/API key not valid|API_KEY_INVALID/i.test(msg)) return "Your Gemini key was rejected. Check it in Settings (⚙️).";
+    if (/^4\d\d/.test(msg) && /key|API_KEY|invalid|permission|denied/i.test(msg)) return "Your Gemini key was rejected or lacks access. Check it in Settings.";
     if (/^429/.test(msg)) return "Gemini rate limited — wait a moment and try again.";
+    if (/^403/.test(msg)) return "Gemini denied the request (key not enabled for this API?). Check Settings.";
+    if (/Failed to fetch|NetworkError|network/i.test(msg)) return "Network error reaching Gemini — check your connection.";
     return "Speech error: " + msg;
   }
 
