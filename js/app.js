@@ -376,12 +376,12 @@ window.App = (function () {
     if (!sel) return;
     const cur = window.Speech.neuralVoiceName();
     const labels = {
-      Danielle: "Danielle (female) — recommended",
-      Lea: "Léa (female, French-first)",
-      Joanna: "Joanna (female)",
-      Ruth: "Ruth (female)",
-      Matthew: "Matthew (male)",
-      Stephen: "Stephen (male)",
+      Lea: "Léa (female) — native French ✅ recommended",
+      Danielle: "Danielle (female) — native English, accented French",
+      Joanna: "Joanna (female) — English",
+      Ruth: "Ruth (female) — English",
+      Matthew: "Matthew (male) — English",
+      Stephen: "Stephen (male) — English",
     };
     sel.innerHTML = window.Speech.NEURAL_BILINGUAL
       .map((v) => `<option value="${v}" ${v === cur ? "selected" : ""}>${labels[v] || v}</option>`)

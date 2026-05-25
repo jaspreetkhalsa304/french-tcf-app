@@ -15,15 +15,18 @@ window.Speech = (function () {
   /* ONE multilingual Polly voice that speaks BOTH languages, so the tutor sounds
    * like a single person whether explaining in English or modelling French. These
    * are generative/neural Polly voices that handle en-US AND fr-FR; we keep the same
-   * voice and just switch the `language` field per phrase. Default: Danielle. */
-  const NEURAL_BILINGUAL = ["Danielle", "Lea", "Matthew", "Joanna", "Ruth", "Stephen"];
+   * voice and just switch the `language` field per phrase.
+   * Default: Léa — a NATIVE French voice, so the French accent is correct for TCF
+   * (her English narration carries a slight, pleasant French colour). Danielle is
+   * the reverse (native English, accented French) and is offered as an option. */
+  const NEURAL_BILINGUAL = ["Lea", "Danielle", "Matthew", "Joanna", "Ruth", "Stephen"];
   function neuralOneVoice() {
     // Default ON — one voice for both languages. Set tcf_neural_one="0" to split.
     return localStorage.getItem("tcf_neural_one") !== "0";
   }
   function neuralVoiceName() {
     const stored = localStorage.getItem("tcf_neural_voice");
-    return (stored && NEURAL_BILINGUAL.includes(stored)) ? stored : "Danielle";
+    return (stored && NEURAL_BILINGUAL.includes(stored)) ? stored : "Lea";
   }
   function neuralAvailable() {
     return !!(window.puter && window.puter.ai && window.puter.ai.txt2speech);
