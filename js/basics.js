@@ -107,7 +107,7 @@ window.Basics = (function () {
   function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
   function openDetail(view, sec, it) {
-    const sttOk = window.Speech.sttSupported;
+    const sttOk = window.Speech.recognitionAvailable();
     const d = view.querySelector("#detail");
     d.innerHTML = `
       <div class="card" style="background:var(--card-2); margin-top:14px">
@@ -121,7 +121,7 @@ window.Basics = (function () {
           <button class="btn secondary" id="dSlow">🐢 Slow</button>
           ${sttOk ? `<button class="btn" id="dSay">🎤 Say it</button>` : ""}
         </div>
-        ${sttOk ? "" : `<div class="tip">🎤 Say-it scoring needs Chrome or Edge. You can still hear it here.</div>`}
+        ${sttOk ? "" : `<div class="tip">🎤 Say-it scoring needs Chrome or Edge — or add a Gemini key in Settings (⚙️) to score your voice in any browser. You can still hear it here.</div>`}
         <div id="dResult"></div>
       </div>
     `;
@@ -135,27 +135,25 @@ window.Basics = (function () {
   async function sayIt(d, it, btn) {
     const res = d.querySelector("#dResult");
     btn.classList.add("recording");
-    btn.textContent = "● Listening…";
+    btn.textContent = window.Speech.geminiActive() ? "● Recording… (tap to stop)" : "● Listening…";
     res.innerHTML = "";
+    const stopHandler = () => window.Speech.stopCapture();
+    if (window.Speech.geminiActive()) btn.addEventListener("click", stopHandler);
     try {
-      const heard = await window.Speech.listen(null, { continuous: true, silenceMs: 1800 });
-      const candidates = window.Speech.lastAlternatives();
-      let r = window.Speech.scorePronunciation(it.say, heard, candidates);
-      // Lenient AI re-grade when a key is set (forgives homophones/accent mishears).
-      if (window.AI.hasKey()) {
-        btn.textContent = "… checking";
-        const g = await window.AI.gradePronunciation(it.say, [heard].concat(candidates || []), window.App.getState().level);
-        if (g) r = { score: g.score, words: g.words.map((w) => ({ word: w.word, ok: w.ok })), heard: r.heard, aiNote: g.note };
-      }
+      // Gemini grades the audio when its key is set; else Web Speech + local/Claude score.
+      const r = await window.Speech.captureAndGrade(it.say, window.App.getState().level, (st) => {
+        if (st === "processing") btn.textContent = "… scoring";
+      });
       const cls = r.score >= 80 ? "good" : r.score >= 55 ? "mid" : "low";
       res.innerHTML = `
         <div class="score-ring ${cls}">${r.score}%</div>
-        <div class="center muted">You said: <em>${escapeHtml(heard) || "(nothing)"}</em></div>` +
+        <div class="center muted">You said: <em>${escapeHtml(r.heard) || "(nothing)"}</em></div>` +
         (r.aiNote ? `<div class="tip" style="margin-top:8px">🧑‍🏫 ${escapeHtml(r.aiNote)}</div>` : "");
       window.App.recordResult("pronunciation", r.score);
     } catch (e) {
       res.innerHTML = `<div class="tip">${e.message === "no-speech" ? "Didn't catch that — try again." : "Couldn't capture audio."}</div>`;
     } finally {
+      btn.removeEventListener("click", stopHandler);
       btn.classList.remove("recording");
       btn.textContent = "🎤 Say it";
     }

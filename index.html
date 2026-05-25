@@ -8,7 +8,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Parle — French TCF Prep (A1 → C1)</title>
-  <link rel="stylesheet" href="css/styles.css?v=30" />
+  <link rel="stylesheet" href="css/styles.css?v=31" />
 </head>
 <body>
   <!-- ===== Top bar ===== -->
@@ -73,6 +73,21 @@
       </div>
 
       <div class="setting-group">
+        <label for="geminiKeyInput">Google AI (Gemini) key — better speech recognition</label>
+        <p class="hint">
+          Optional. With this key, the 🎤 mic records your voice and <strong>Gemini</strong> scores
+          your pronunciation — far more reliable than the built-in recogniser, and it works in
+          <strong>every</strong> browser (including Safari &amp; Firefox). Stored only in this browser.
+          Get a free key at <strong>aistudio.google.com/apikey</strong>.
+        </p>
+        <div class="key-row">
+          <input type="password" id="geminiKeyInput" placeholder="AIza..." autocomplete="off" />
+          <button id="geminiKeyToggle" class="ghost-btn" title="Show / hide">👁️</button>
+        </div>
+        <div id="geminiKeyStatus" class="key-status"></div>
+      </div>
+
+      <div class="setting-group">
         <label><input type="checkbox" id="neuralToggle" style="margin-right:8px;vertical-align:middle" />Use human-like neural voice ✨</label>
         <p class="hint" id="neuralHint">Free natural-sounding voices (no API key). When off, uses the built-in Mac voices below.</p>
         <div class="row" style="margin-top:6px">
@@ -126,8 +141,10 @@
 
       <div class="setting-group small">
         <p class="hint">
-          <strong>Browser tip:</strong> speech recognition (scoring your own voice) works in
-          <strong>Chrome</strong> or <strong>Edge</strong>. Other browsers still play audio and chat.
+          <strong>Browser tip:</strong> the built-in voice scoring works in <strong>Chrome</strong>
+          or <strong>Edge</strong>. Add a <strong>Gemini key</strong> above to score your voice in
+          <strong>any</strong> browser (it's also more reliable). Without either, other browsers
+          still play audio and chat.
         </p>
       </div>
     </div>
@@ -147,25 +164,26 @@
   </script>
 
   <!-- App modules (?v= cache-buster — bump when files change) -->
-  <script src="data/curriculum.js?v=30"></script>
-  <script src="data/tcf_tasks.js?v=30"></script>
-  <script src="data/basics.js?v=30"></script>
-  <script src="data/lessons.js?v=30"></script>
-  <script src="data/verbs.js?v=30"></script>
-  <script src="js/speech.js?v=30"></script>
-  <script src="js/wordbank.js?v=30"></script>
-  <script src="js/claude.js?v=30"></script>
-  <script src="js/basics.js?v=30"></script>
-  <script src="js/lessons.js?v=30"></script>
-  <script src="js/grammar.js?v=30"></script>
-  <script src="js/verbs.js?v=30"></script>
-  <script src="js/pronunciation.js?v=30"></script>
-  <script src="js/conversation.js?v=30"></script>
-  <script src="js/listening.js?v=30"></script>
-  <script src="js/reading.js?v=30"></script>
-  <script src="js/writing.js?v=30"></script>
-  <script src="js/mocktest.js?v=30"></script>
-  <script src="js/placement.js?v=30"></script>
-  <script src="js/app.js?v=30"></script>
+  <script src="data/curriculum.js?v=31"></script>
+  <script src="data/tcf_tasks.js?v=31"></script>
+  <script src="data/basics.js?v=31"></script>
+  <script src="data/lessons.js?v=31"></script>
+  <script src="data/verbs.js?v=31"></script>
+  <script src="js/speech.js?v=31"></script>
+  <script src="js/gemini.js?v=31"></script>
+  <script src="js/wordbank.js?v=31"></script>
+  <script src="js/claude.js?v=31"></script>
+  <script src="js/basics.js?v=31"></script>
+  <script src="js/lessons.js?v=31"></script>
+  <script src="js/grammar.js?v=31"></script>
+  <script src="js/verbs.js?v=31"></script>
+  <script src="js/pronunciation.js?v=31"></script>
+  <script src="js/conversation.js?v=31"></script>
+  <script src="js/listening.js?v=31"></script>
+  <script src="js/reading.js?v=31"></script>
+  <script src="js/writing.js?v=31"></script>
+  <script src="js/mocktest.js?v=31"></script>
+  <script src="js/placement.js?v=31"></script>
+  <script src="js/app.js?v=31"></script>
 </body>
 </html>

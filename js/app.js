@@ -261,6 +261,9 @@ window.App = (function () {
     const keyInput = document.getElementById("apiKeyInput");
     keyInput.value = window.AI.getKey();
     refreshKeyStatus();
+    const gemInput = document.getElementById("geminiKeyInput");
+    if (gemInput && window.Gemini) { gemInput.value = window.Gemini.getKey(); }
+    refreshGeminiStatus();
     const neural = document.getElementById("neuralToggle");
     if (neural) {
       const have = window.Speech.neuralAvailable();
@@ -287,6 +290,19 @@ window.App = (function () {
     const el = document.getElementById("apiKeyStatus");
     if (window.AI.hasKey()) { el.textContent = "✓ AI tutor enabled"; el.className = "key-status ok"; }
     else { el.textContent = "○ AI tutor off — offline lessons still work"; el.className = "key-status off"; }
+  }
+  function refreshGeminiStatus() {
+    const el = document.getElementById("geminiKeyStatus");
+    if (!el || !window.Gemini) return;
+    if (window.Gemini.hasKey()) {
+      el.textContent = window.Gemini.recordingSupported()
+        ? "✓ Gemini voice scoring on — works in any browser"
+        : "✓ Gemini key saved (this browser can't record audio)";
+      el.className = "key-status ok";
+    } else {
+      el.textContent = "○ Optional — uses the built-in Chrome/Edge recogniser without it";
+      el.className = "key-status off";
+    }
   }
   function voiceTier(v) {
     const n = (v.name || "").toLowerCase();
@@ -383,6 +399,18 @@ window.App = (function () {
     document.getElementById("apiKeyToggle").addEventListener("click", () => {
       keyInput.type = keyInput.type === "password" ? "text" : "password";
     });
+
+    const gemInput = document.getElementById("geminiKeyInput");
+    if (gemInput) {
+      gemInput.addEventListener("input", () => {
+        localStorage.setItem("tcf_gemini_key", gemInput.value.trim());
+        refreshGeminiStatus();
+      });
+      const gemToggle = document.getElementById("geminiKeyToggle");
+      if (gemToggle) gemToggle.addEventListener("click", () => {
+        gemInput.type = gemInput.type === "password" ? "text" : "password";
+      });
+    }
 
     document.getElementById("voiceSelect").addEventListener("change", (e) => {
       localStorage.setItem("tcf_voice", e.target.value);

@@ -324,6 +324,17 @@ window.Speech = (function () {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const sttSupported = !!SR;
 
+  /* When a Google (Gemini) key is set, we capture with MediaRecorder and send the
+   * audio to Gemini — far more reliable than Web Speech and works in ALL browsers.
+   * Falls back to Web Speech (below) when no Gemini key is present. */
+  function geminiActive() {
+    return !!(window.Gemini && window.Gemini.hasKey() && window.Gemini.recordingSupported());
+  }
+  /* True if the learner can do ANY speaking practice — Gemini OR Web Speech. */
+  function recognitionAvailable() {
+    return geminiActive() || sttSupported;
+  }
+
   /**
    * Listen and resolve with the recognized transcript.
    *
@@ -552,6 +563,83 @@ window.Speech = (function () {
     return { score: best.score, words: best.words, heard: bestHeard };
   }
 
+  /* ----- Unified capture + grade -----
+   * Records a spoken attempt at `target` and returns a scored result:
+   *   { score:0-100, words:[{word, ok}], heard, aiNote? }
+   *
+   * Routing:
+   *   • Gemini key set → MediaRecorder → Gemini grades the AUDIO directly (best).
+   *   • else           → Web Speech → local scorePronunciation, optionally re-graded
+   *                       leniently by Claude (AI.gradePronunciation) on the text.
+   *
+   * onState(state) gets "listening" | "processing". Throws on capture failure so
+   * callers show their existing error UI. While recording, call stopCapture() to end.
+   */
+  async function captureAndGrade(target, level, onState) {
+    level = level || (window.App && window.App.getState().level) || "A1";
+
+    if (geminiActive()) {
+      const { b64, mime } = await window.Gemini.recordClip(onState, { silenceMs: 1800 });
+      onState && onState("processing");
+      const g = await window.Gemini.transcribeAndGrade(target, level, b64, mime);
+      if (g) {
+        return {
+          score: g.score,
+          words: g.words.map((w) => ({ word: w.word, ok: w.ok })),
+          heard: g.heard,
+          aiNote: g.note,
+        };
+      }
+      // Gemini transcribe/grade failed — fall back to a plain transcript + local score.
+      const t = await window.Gemini.transcribe(b64, mime).catch(() => "");
+      return scorePronunciation(target, t);
+    }
+
+    // Web Speech path (Chrome/Edge), with optional lenient Claude re-grade.
+    const transcript = await listen(onState, { continuous: true, silenceMs: 1800 });
+    const candidates = lastAlternatives();
+    let res = scorePronunciation(target, transcript, candidates);
+    if (window.AI && window.AI.hasKey()) {
+      onState && onState("processing");
+      const g = await window.AI.gradePronunciation(target, [transcript].concat(candidates || []), level);
+      if (g) {
+        res = {
+          score: g.score,
+          words: g.words.map((w) => ({ word: w.word, ok: w.ok })),
+          heard: res.heard,
+          aiNote: g.note,
+        };
+      }
+    }
+    return res;
+  }
+
+  /* Capture a spoken French phrase and return just the transcript text (for the Talk
+   * mic). Routes through Gemini when its key is set, else Web Speech. */
+  async function captureTranscript(onState, opts = {}) {
+    if (geminiActive()) {
+      const { b64, mime } = await window.Gemini.recordClip(onState, { silenceMs: opts.silenceMs != null ? opts.silenceMs : 3000 });
+      onState && onState("processing");
+      captureTranscript._alternatives = [];
+      return window.Gemini.transcribe(b64, mime);
+    }
+    const t = await listen(onState, Object.assign({ continuous: true, silenceMs: 3000 }, opts));
+    captureTranscript._alternatives = lastAlternatives();
+    return t;
+  }
+  /* Alternatives from the most recent captureTranscript (empty for the Gemini path). */
+  function captureAlternatives() { return captureTranscript._alternatives || []; }
+
+  /* Stop whichever capture is in progress (Gemini recorder or Web Speech). */
+  function stopCapture() {
+    if (geminiActive() && window.Gemini.isRecording()) { window.Gemini.stopRecording(); return; }
+    stopListening();
+  }
+  /* True if a capture (either engine) is currently running. */
+  function isCapturing() {
+    return (window.Gemini && window.Gemini.isRecording && window.Gemini.isRecording()) || isListening();
+  }
+
   return {
     speak,
     speakEnglish,
@@ -570,6 +658,13 @@ window.Speech = (function () {
     isListening,
     lastAlternatives,
     scorePronunciation,
+    captureAndGrade,
+    captureTranscript,
+    captureAlternatives,
+    stopCapture,
+    isCapturing,
+    geminiActive,
+    recognitionAvailable,
     normalize,
     sttSupported,
     frenchVoices,

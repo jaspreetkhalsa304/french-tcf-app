@@ -34,7 +34,7 @@ window.Pronunciation = (function () {
   function drawCard(view) {
     const item = queue[idx];
     const s = window.App.getState();
-    const sttOk = window.Speech.sttSupported;
+    const sttOk = window.Speech.recognitionAvailable();
 
     view.innerHTML = `
       <div class="card">
@@ -59,7 +59,7 @@ window.Pronunciation = (function () {
         ${
           sttOk
             ? ""
-            : `<div class="tip">🎤 Speech scoring needs <strong>Chrome</strong> or <strong>Edge</strong>. You can still listen and repeat here.</div>`
+            : `<div class="tip">🎤 Speech scoring needs <strong>Chrome</strong> or <strong>Edge</strong> — or add a <strong>Gemini key</strong> in Settings (⚙️) to score your voice in any browser. You can still listen and repeat here.</div>`
         }
 
         <div id="result"></div>
@@ -87,31 +87,19 @@ window.Pronunciation = (function () {
   async function doListen(view, item, btn) {
     const resultEl = view.querySelector("#result");
     btn.classList.add("recording");
-    btn.textContent = "● Listening…";
+    // With Gemini the button doubles as a stop control; tap again to finish early.
+    btn.textContent = window.Speech.geminiActive() ? "● Recording… (tap to stop)" : "● Listening…";
     resultEl.innerHTML = "";
+    // Tap-to-stop while recording (Gemini path).
+    const stopHandler = () => window.Speech.stopCapture();
+    if (window.Speech.geminiActive()) btn.addEventListener("click", stopHandler);
     try {
-      const transcript = await window.Speech.listen((stateStr) => {
+      // captureAndGrade picks Gemini (grades the audio) when a key is set, else
+      // Web Speech + local/Claude scoring — both return the same result shape.
+      const s2 = window.App.getState();
+      const res = await window.Speech.captureAndGrade(item.fr, s2.level, (stateStr) => {
         if (stateStr === "processing") btn.textContent = "… scoring";
-      }, { continuous: true, silenceMs: 1800 }); // a pause inside the phrase won't cut you off
-      // Score against ALL of the engine's guesses, not just the top one.
-      const candidates = window.Speech.lastAlternatives();
-      let res = window.Speech.scorePronunciation(item.fr, transcript, candidates);
-      // If a key is set, let Claude re-judge leniently (forgives homophones/accent
-      // mishears that the literal string-match wrongly fails). Claude is the better judge.
-      if (window.AI.hasKey()) {
-        btn.textContent = "… checking";
-        const all = [transcript].concat(candidates || []);
-        const s2 = window.App.getState();
-        const g = await window.AI.gradePronunciation(item.fr, all, s2.level);
-        if (g) {
-          res = {
-            score: g.score,
-            words: g.words.map((w) => ({ word: w.word, ok: w.ok })),
-            heard: res.heard,
-            aiNote: g.note,
-          };
-        }
-      }
+      });
       lastResult = res;
       showResult(view, item, res);
       // Persist: record skill result + add to spaced-repetition queue.
@@ -124,6 +112,7 @@ window.Pronunciation = (function () {
         "Couldn't capture audio — try again.";
       resultEl.innerHTML = `<div class="tip">${reason}</div>`;
     } finally {
+      btn.removeEventListener("click", stopHandler);
       btn.classList.remove("recording");
       btn.textContent = "🎤 Say it";
     }

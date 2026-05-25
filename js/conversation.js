@@ -195,7 +195,7 @@ window.Conversation = (function () {
         <div class="chat-window" id="chat"></div>
         <div class="chat-input-row">
           <textarea id="chatInput" placeholder="${keyOn ? "Type in English or French…" : "Add an API key to chat"}" ${keyOn ? "" : "disabled"}></textarea>
-          <button class="icon-btn" id="micBtn" title="Speak" ${window.Speech.sttSupported && keyOn ? "" : "disabled"}>🎤</button>
+          <button class="icon-btn" id="micBtn" title="Speak" ${window.Speech.recognitionAvailable() && keyOn ? "" : "disabled"}>🎤</button>
           <button class="btn" id="sendBtn" ${keyOn ? "" : "disabled"}>Send</button>
         </div>
       </div>
@@ -221,7 +221,7 @@ window.Conversation = (function () {
         if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(view); }
       });
       const mic = view.querySelector("#micBtn");
-      if (window.Speech.sttSupported) mic.addEventListener("click", () => micInput(view, mic));
+      if (window.Speech.recognitionAvailable()) mic.addEventListener("click", () => micInput(view, mic));
       const lec = view.querySelector("#lectureBtn");
       if (lec) lec.addEventListener("click", () => resumeSyllabus(view));
       const idxBtn = view.querySelector("#indexBtn");
@@ -589,17 +589,18 @@ window.Conversation = (function () {
 
   async function micInput(view, mic) {
     const input = view.querySelector("#chatInput");
-    // Tap-to-toggle: if we're already listening, this tap means "I'm done" → stop & send.
-    if (window.Speech.isListening()) {
-      window.Speech.stopListening();
+    // Tap-to-toggle: if we're already capturing, this tap means "I'm done" → stop.
+    if (window.Speech.isCapturing()) {
+      window.Speech.stopCapture();
       return;
     }
     mic.classList.add("recording");
     mic.title = "Tap when you're done speaking";
     window.App.toast("Listening… speak, then tap 🎤 again when done.");
     try {
-      // Continuous: a pause won't cut you off; it ends when you tap again or after silence.
-      const t = await window.Speech.listen(null, { continuous: true, silenceMs: 3000 });
+      // Routes through Gemini (records audio → transcribes) when its key is set, else
+      // Web Speech. Either way it ends when you tap again or after a silence.
+      const t = await window.Speech.captureTranscript(null, { silenceMs: 3000 });
       mic.classList.remove("recording");
       mic.title = "Speak";
       if (!t || !t.trim()) { window.App.toast("Didn't catch that — try again."); return; }
@@ -607,7 +608,7 @@ window.Conversation = (function () {
       // imperfect, so let the user fix it (or pick a better guess) before sending.
       input.value = input.value.trim() ? input.value.trim() + " " + t : t;
       input.focus();
-      showHeardReview(view, window.Speech.lastAlternatives(), t);
+      showHeardReview(view, window.Speech.captureAlternatives(), t);
     } catch (e) {
       mic.classList.remove("recording");
       mic.title = "Speak";

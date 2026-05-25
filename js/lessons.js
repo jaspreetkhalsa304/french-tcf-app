@@ -160,7 +160,7 @@ window.Lessons = (function () {
           <div class="row" style="justify-content:center">
             <button class="btn blue" id="sHear">▶︎ Hear</button>
             <button class="btn secondary" id="sSlow">🐢 Slow</button>
-            ${window.Speech.sttSupported ? `<button class="btn" id="sSay">🎤 Say it</button>` : ""}
+            ${window.Speech.recognitionAvailable() ? `<button class="btn" id="sSay">🎤 Say it</button>` : ""}
           </div>
           <div id="sResult"></div>
         `;
@@ -210,18 +210,15 @@ window.Lessons = (function () {
     async function sayCheck(el, step, btn) {
       const res = el.querySelector("#sResult");
       btn.classList.add("recording");
-      btn.textContent = "● Listening…";
+      btn.textContent = window.Speech.geminiActive() ? "● Recording… (tap to stop)" : "● Listening…";
       res.innerHTML = "";
+      const stopHandler = () => window.Speech.stopCapture();
+      if (window.Speech.geminiActive()) btn.addEventListener("click", stopHandler);
       try {
-        const heard = await window.Speech.listen(null, { continuous: true, silenceMs: 1800 });
-        const candidates = window.Speech.lastAlternatives();
-        let r = window.Speech.scorePronunciation(step.fr, heard, candidates);
-        // Lenient AI re-grade when a key is set (forgives homophones/accent mishears).
-        if (window.AI.hasKey()) {
-          btn.textContent = "… checking";
-          const g = await window.AI.gradePronunciation(step.fr, [heard].concat(candidates || []), window.App.getState().level);
-          if (g) r = { score: g.score, words: g.words.map((w) => ({ word: w.word, ok: w.ok })), heard: r.heard, aiNote: g.note };
-        }
+        // Gemini grades the audio when its key is set; else Web Speech + local/Claude score.
+        const r = await window.Speech.captureAndGrade(step.fr, window.App.getState().level, (st) => {
+          if (st === "processing") btn.textContent = "… scoring";
+        });
         const cls = r.score >= 80 ? "good" : r.score >= 55 ? "mid" : "low";
         const words = r.words.map((w) => `<span class="word ${w.ok ? "ok" : "miss"}">${w.word}</span>`).join(" ");
         res.innerHTML = `<div class="score-ring ${cls}">${r.score}%</div><div class="center">${words}</div>` +
@@ -230,6 +227,7 @@ window.Lessons = (function () {
       } catch (e) {
         res.innerHTML = `<div class="tip">${e.message === "no-speech" ? "Didn't catch that — try again." : "Couldn't capture audio."}</div>`;
       } finally {
+        btn.removeEventListener("click", stopHandler);
         btn.classList.remove("recording");
         btn.textContent = "🎤 Say it";
       }
