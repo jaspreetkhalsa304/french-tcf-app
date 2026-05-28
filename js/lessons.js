@@ -1,43 +1,53 @@
-/* ===== Lessons (school-style, taught) =====
- * Browse lessons for your level (two tracks: Pronunciation, Sentences), then walk
- * through a lesson step-by-step: explanation → playable examples → "your turn" →
- * end-of-lesson quiz. Completion is tracked in App state (state.lessonsDone).
- * Fully offline; an "✨ More examples" button uses Claude if a key is set.
+/* ===== Lessons (sentence-building patterns) =====
+ * Each lesson teaches ONE reusable sentence pattern (the "shape") with 6 ready-made
+ * variations + a fill-in drill. Bridges Grammar (rules) and Talk (free output) by
+ * giving the learner an immediately deployable shape to plug vocab into.
+ *
+ * Distinct from 🧩 Grammar (which lists the rule lessons from window.LESSONS).
+ *
+ * The `openLesson(view, lessonId)` export is preserved for the Grammar tab, which
+ * still uses the step-by-step lesson player on window.LESSONS.
  */
 window.Lessons = (function () {
-  function done() {
+  function donePatterns() {
     const s = window.App.getState();
-    if (!s.lessonsDone) s.lessonsDone = {};
-    return s.lessonsDone;
+    if (!s.patternsDone) s.patternsDone = {};
+    return s.patternsDone;
+  }
+  function markPatternDone(id) {
+    const s = window.App.getState();
+    if (!s.patternsDone) s.patternsDone = {};
+    if (!s.patternsDone[id]) {
+      s.patternsDone[id] = true;
+      window.App.addXP(10);
+      window.App.recordResult("speaking", 80);
+      window.App.save();
+    }
   }
 
-  /* ----- Full course index: every level A1→C1, jump into ANY lesson ----- */
+  /* ----- Pattern index: all 30 patterns, grouped by level ----- */
   function render(view) {
     const s = window.App.getState();
     const curLevel = s.level;
-    const completed = done();
+    const completed = donePatterns();
     const levels = window.CURRICULUM.levels;
 
-    function lessonRow(l) {
-      const isDone = completed[l.id];
-      const icon = l.track === "Pronunciation" ? "🗣️" : l.track === "Exam" ? "📝" : "🧩";
+    function patternRow(p) {
+      const isDone = completed[p.id];
       return `
-        <button class="basic-row lesson-row" data-lesson="${l.id}">
+        <button class="basic-row lesson-row" data-pattern="${p.id}">
           <div class="br-main">
-            <span class="br-fr">${isDone ? "✅" : icon} ${escapeHtml(l.title)}</span>
+            <span class="br-fr">${isDone ? "✅" : "🧱"} ${escapeHtml(p.title)}</span>
           </div>
-          <div class="br-en">${escapeHtml(l.goal)}</div>
+          <div class="br-en"><code style="font-size:12px">${escapeHtml(p.shape)}</code></div>
         </button>`;
     }
 
     function levelSection(lvl) {
-      const byTrack = window.LESSONS_BY_LEVEL[lvl] || { Exam: [], Pronunciation: [], Sentences: [] };
-      const all = [...(byTrack.Exam || []), ...(byTrack.Pronunciation || []), ...(byTrack.Sentences || [])];
-      const total = all.length;
-      const doneCount = all.filter((l) => completed[l.id]).length;
+      const list = (window.PATTERNS_BY_LEVEL && window.PATTERNS_BY_LEVEL[lvl]) || [];
+      const total = list.length;
+      const doneCount = list.filter((p) => completed[p.id]).length;
       const isCurrent = lvl === curLevel;
-      const grammar = (window.CURRICULUM.grammar[lvl] || []).join(" · ");
-      const phon = (window.CURRICULUM.phonetics[lvl] || []).join(" · ");
       const open = isCurrent ? "open" : "";
       const pct = total ? Math.round((doneCount / total) * 100) : 0;
       return `
@@ -50,16 +60,8 @@ window.Lessons = (function () {
             <span class="lvl-count">${total ? `${doneCount}/${total} done` : "soon"}</span>
           </summary>
           <div class="level-body">
-            <div class="lvl-meta">
-              <p><strong>🎯 You'll be able to:</strong> ${escapeHtml(window.CURRICULUM.canDo[lvl] || "")}</p>
-              ${grammar ? `<p><strong>🧩 Grammar:</strong> <span class="muted">${escapeHtml(grammar)}</span></p>` : ""}
-              ${phon ? `<p><strong>🗣️ Pronunciation:</strong> <span class="muted">${escapeHtml(phon)}</span></p>` : ""}
-            </div>
             ${total ? `<div class="lesson-progress" style="margin:6px 0 10px"><span style="width:${pct}%"></span></div>` : ""}
-            ${byTrack.Exam && byTrack.Exam.length ? `<h4 class="track-h">📝 TCF exam guide & strategy</h4>${byTrack.Exam.map(lessonRow).join("")}` : ""}
-            ${byTrack.Sentences && byTrack.Sentences.length ? `<h4 class="track-h">🧩 Sentences & grammar</h4>${byTrack.Sentences.map(lessonRow).join("")}` : ""}
-            ${byTrack.Pronunciation && byTrack.Pronunciation.length ? `<h4 class="track-h">🗣️ Pronunciation</h4>${byTrack.Pronunciation.map(lessonRow).join("")}` : ""}
-            ${!total ? `<p class="muted">Taught lessons for ${lvl} are coming soon. Use 🔤 Basics, 🗣️ Speak, or 💬 Talk for this level.</p>` : ""}
+            ${total ? list.map(patternRow).join("") : `<p class="muted">Patterns for ${lvl} are coming soon.</p>`}
             <div class="row" style="margin-top:8px">
               ${!isCurrent ? `<button class="btn secondary" data-setlevel="${lvl}" style="font-size:13px;padding:7px 12px">Make this my level</button>` : ""}
             </div>
@@ -67,20 +69,20 @@ window.Lessons = (function () {
         </details>`;
     }
 
-    const totalLessons = window.LESSONS.length;
-    const totalDone = window.LESSONS.filter((l) => completed[l.id]).length;
+    const totalPatterns = (window.PATTERNS || []).length;
+    const totalDone = (window.PATTERNS || []).filter((p) => completed[p.id]).length;
 
     view.innerHTML = `
       <div class="card">
-        <div class="row"><span class="badge">📚 Course index</span><span class="badge">A1 → C1</span></div>
-        <h2>Leçons — full syllabus</h2>
-        <p class="muted">Everything you'll learn, level by level. Tap any lesson to jump straight in — you don't have to be on that level. ${totalDone}/${totalLessons} lessons done.</p>
+        <div class="row"><span class="badge">📚 Sentence patterns</span><span class="badge">A1 → C1</span></div>
+        <h2>Leçons — sentence-building patterns</h2>
+        <p class="muted">Each lesson teaches ONE reusable sentence shape — learn the pattern once, then plug different words in to say a lot. Different from <strong>🧩 Grammar</strong> (which lists the rules) — these turn rules into things you can actually say. ${totalDone}/${totalPatterns} patterns done.</p>
       </div>
       ${levels.map(levelSection).join("")}
     `;
 
-    view.querySelectorAll("[data-lesson]").forEach((b) =>
-      b.addEventListener("click", () => openLesson(view, b.dataset.lesson))
+    view.querySelectorAll("[data-pattern]").forEach((b) =>
+      b.addEventListener("click", () => openPattern(view, b.dataset.pattern))
     );
     view.querySelectorAll("[data-setlevel]").forEach((b) =>
       b.addEventListener("click", (e) => {
@@ -90,6 +92,125 @@ window.Lessons = (function () {
         window.App.toast(`Level set to ${b.dataset.setlevel}.`);
       })
     );
+  }
+
+  /* ----- Pattern player ----- */
+  function openPattern(view, patternId) {
+    const p = (window.PATTERNS || []).find((x) => x.id === patternId);
+    if (!p) return render(view);
+
+    function drawExamples() {
+      view.innerHTML = `
+        <div class="card">
+          <div class="row">
+            <button class="btn secondary" id="backBtn" style="padding:6px 10px;font-size:13px">← Back</button>
+            <span class="badge">🧱 Pattern · ${p.level}</span>
+            <span class="spacer"></span>
+          </div>
+          <h2>${escapeHtml(p.title)}</h2>
+          <div class="tip" style="margin:8px 0"><strong>Shape:</strong> <code>${escapeHtml(p.shape)}</code></div>
+          <p>${escapeHtml(p.why)}</p>
+          <h4 class="track-h" style="margin-top:14px">Examples — tap to hear</h4>
+          <div id="exList"></div>
+          <div class="row" style="justify-content:center;margin-top:14px">
+            <button class="btn" id="drillBtn">🎯 Start drill →</button>
+          </div>
+        </div>
+      `;
+      const exList = view.querySelector("#exList");
+      p.examples.forEach((it) => {
+        const row = document.createElement("button");
+        row.className = "basic-row";
+        row.innerHTML = `<div class="br-main"><span class="br-fr">${escapeHtml(it.fr)}</span> <span class="play-hint">🔊</span></div><div class="br-en">${escapeHtml(it.en)}</div>`;
+        row.addEventListener("click", () => window.Speech.speak(it.fr));
+        exList.appendChild(row);
+      });
+      view.querySelector("#backBtn").addEventListener("click", () => render(view));
+      view.querySelector("#drillBtn").addEventListener("click", drawDrill);
+      // Auto-play the first example so the learner hears the shape immediately.
+      setTimeout(() => p.examples[0] && window.Speech.speak(p.examples[0].fr), 300);
+    }
+
+    function normalize(s) {
+      return String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[.!?,;:]/g, "").replace(/\s+/g, " ").trim();
+    }
+
+    function drawDrill() {
+      let qi = 0, correct = 0;
+      const quiz = p.drill;
+
+      function drawQ() {
+        const item = quiz[qi];
+        view.innerHTML = `
+          <div class="card">
+            <div class="row">
+              <button class="btn secondary" id="backBtn" style="padding:6px 10px;font-size:13px">← Examples</button>
+              <span class="badge">🎯 Drill · ${qi + 1} / ${quiz.length}</span>
+              <span class="spacer"></span>
+            </div>
+            <h3>${escapeHtml(p.title)}</h3>
+            <div class="tip" style="margin:10px 0"><strong>Fill in:</strong> ${escapeHtml(item.prompt)}</div>
+            ${item.hint ? `<p class="muted" style="font-size:13px">💡 ${escapeHtml(item.hint)}</p>` : ""}
+            <input type="text" id="ansInput" placeholder="your answer…" style="width:100%;padding:10px;font-size:16px;border-radius:8px;border:1px solid var(--border);background:var(--card-2);color:inherit" autocomplete="off" />
+            <div class="row" style="justify-content:flex-end;margin-top:10px">
+              <button class="btn" id="checkBtn">Check</button>
+            </div>
+            <div id="fb"></div>
+          </div>
+        `;
+        const ans = view.querySelector("#ansInput");
+        const fb = view.querySelector("#fb");
+        const check = () => {
+          const got = normalize(ans.value);
+          const want = normalize(item.answer);
+          const ok = got === want;
+          if (ok) {
+            correct++;
+            fb.innerHTML = `<div class="tip tip-ok">✅ Correct! The full sentence: <em>${escapeHtml(item.prompt.replace("___", item.answer))}</em></div><div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn" id="nextBtn">${qi === quiz.length - 1 ? "Finish" : "Next →"}</button></div>`;
+            view.querySelector("#nextBtn").addEventListener("click", () => {
+              qi++;
+              if (qi >= quiz.length) drawDone();
+              else drawQ();
+            });
+          } else {
+            fb.innerHTML = `<div class="tip tip-bad">❌ Not quite — the answer was <strong>${escapeHtml(item.answer)}</strong>. Full sentence: <em>${escapeHtml(item.prompt.replace("___", item.answer))}</em></div><div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn" id="nextBtn">${qi === quiz.length - 1 ? "Finish" : "Next →"}</button></div>`;
+            view.querySelector("#nextBtn").addEventListener("click", () => {
+              qi++;
+              if (qi >= quiz.length) drawDone();
+              else drawQ();
+            });
+          }
+        };
+        view.querySelector("#checkBtn").addEventListener("click", check);
+        ans.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); check(); } });
+        view.querySelector("#backBtn").addEventListener("click", drawExamples);
+        setTimeout(() => ans.focus(), 50);
+      }
+
+      function drawDone() {
+        const pct = Math.round((correct / quiz.length) * 100);
+        const pass = pct >= 67;
+        if (pass) markPatternDone(p.id);
+        view.innerHTML = `
+          <div class="card center">
+            <h2>${pass ? "🎉" : "💪"} ${correct} / ${quiz.length} correct</h2>
+            <p class="muted">${pass ? "Pattern marked complete (+10 XP)." : "Have another go — repetition makes the pattern stick."}</p>
+            <div class="row" style="justify-content:center">
+              <button class="btn" id="againBtn">↻ Try drill again</button>
+              <button class="btn secondary" id="seeBtn">📖 See examples</button>
+              <button class="btn secondary" id="indexBtn">📚 All patterns</button>
+            </div>
+          </div>
+        `;
+        view.querySelector("#againBtn").addEventListener("click", drawDrill);
+        view.querySelector("#seeBtn").addEventListener("click", drawExamples);
+        view.querySelector("#indexBtn").addEventListener("click", () => render(view));
+      }
+
+      drawQ();
+    }
+
+    drawExamples();
   }
 
   /* ----- Lesson player ----- */
