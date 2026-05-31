@@ -8,7 +8,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>Parle — French TCF Prep (A1 → C1)</title>
-  <link rel="stylesheet" href="css/styles.css?v=37" />
+  <link rel="stylesheet" href="css/styles.css?v=38" />
 </head>
 <body>
   <!-- ===== Top bar ===== -->
@@ -88,6 +88,21 @@
           <button id="geminiTestBtn" class="ghost-btn">🔌 Test Gemini key</button>
         </div>
         <div id="geminiKeyStatus" class="key-status"></div>
+      </div>
+
+      <div class="setting-group">
+        <label for="openaiKeyInput">OpenAI key — live voice call mode (📞 Call Camille)</label>
+        <p class="hint">
+          Optional. With this key, the 💬 Talk tab gets a <strong>📞 Call</strong> button: a real-time
+          voice call with Camille — you both talk, you can interrupt her, no recording / send steps.
+          Uses <code>gpt-realtime-mini</code> (~$0.05/min). Stored only in this browser.
+          Get a key at <strong>platform.openai.com/api-keys</strong>.
+        </p>
+        <div class="key-row">
+          <input type="password" id="openaiKeyInput" placeholder="sk-..." autocomplete="off" />
+          <button id="openaiKeyToggle" class="ghost-btn" title="Show / hide">👁️</button>
+        </div>
+        <div id="openaiKeyStatus" class="key-status"></div>
       </div>
 
       <div class="setting-group">
@@ -177,27 +192,28 @@
   </script>
 
   <!-- App modules (?v= cache-buster — bump when files change) -->
-  <script src="data/curriculum.js?v=37"></script>
-  <script src="data/tcf_tasks.js?v=37"></script>
-  <script src="data/basics.js?v=37"></script>
-  <script src="data/lessons.js?v=37"></script>
-  <script src="data/patterns.js?v=37"></script>
-  <script src="data/verbs.js?v=37"></script>
-  <script src="js/speech.js?v=37"></script>
-  <script src="js/gemini.js?v=37"></script>
-  <script src="js/wordbank.js?v=37"></script>
-  <script src="js/claude.js?v=37"></script>
-  <script src="js/basics.js?v=37"></script>
-  <script src="js/lessons.js?v=37"></script>
-  <script src="js/grammar.js?v=37"></script>
-  <script src="js/verbs.js?v=37"></script>
-  <script src="js/pronunciation.js?v=37"></script>
-  <script src="js/conversation.js?v=37"></script>
-  <script src="js/listening.js?v=37"></script>
-  <script src="js/reading.js?v=37"></script>
-  <script src="js/writing.js?v=37"></script>
-  <script src="js/mocktest.js?v=37"></script>
-  <script src="js/placement.js?v=37"></script>
-  <script src="js/app.js?v=37"></script>
+  <script src="data/curriculum.js?v=38"></script>
+  <script src="data/tcf_tasks.js?v=38"></script>
+  <script src="data/basics.js?v=38"></script>
+  <script src="data/lessons.js?v=38"></script>
+  <script src="data/patterns.js?v=38"></script>
+  <script src="data/verbs.js?v=38"></script>
+  <script src="js/speech.js?v=38"></script>
+  <script src="js/gemini.js?v=38"></script>
+  <script src="js/realtime.js?v=38"></script>
+  <script src="js/wordbank.js?v=38"></script>
+  <script src="js/claude.js?v=38"></script>
+  <script src="js/basics.js?v=38"></script>
+  <script src="js/lessons.js?v=38"></script>
+  <script src="js/grammar.js?v=38"></script>
+  <script src="js/verbs.js?v=38"></script>
+  <script src="js/pronunciation.js?v=38"></script>
+  <script src="js/conversation.js?v=38"></script>
+  <script src="js/listening.js?v=38"></script>
+  <script src="js/reading.js?v=38"></script>
+  <script src="js/writing.js?v=38"></script>
+  <script src="js/mocktest.js?v=38"></script>
+  <script src="js/placement.js?v=38"></script>
+  <script src="js/app.js?v=38"></script>
 </body>
 </html>

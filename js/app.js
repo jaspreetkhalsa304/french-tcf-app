@@ -264,6 +264,9 @@ window.App = (function () {
     const gemInput = document.getElementById("geminiKeyInput");
     if (gemInput && window.Gemini) { gemInput.value = window.Gemini.getKey(); }
     refreshGeminiStatus();
+    const oaiInput = document.getElementById("openaiKeyInput");
+    if (oaiInput && window.Realtime) { oaiInput.value = window.Realtime.getKey(); }
+    refreshOpenaiStatus();
     const neural = document.getElementById("neuralToggle");
     if (neural) {
       const have = window.Speech.neuralAvailable();
@@ -304,6 +307,17 @@ window.App = (function () {
       el.className = "key-status ok";
     } else {
       el.textContent = "○ Optional — uses the built-in Chrome/Edge recogniser without it";
+      el.className = "key-status off";
+    }
+  }
+  function refreshOpenaiStatus() {
+    const el = document.getElementById("openaiKeyStatus");
+    if (!el || !window.Realtime) return;
+    if (window.Realtime.hasKey()) {
+      el.textContent = "✓ Live voice call on — open 💬 Talk to use the 📞 Call button";
+      el.className = "key-status ok";
+    } else {
+      el.textContent = "○ Optional — only needed for the live voice call mode";
       el.className = "key-status off";
     }
   }
@@ -431,6 +445,18 @@ window.App = (function () {
         gemInput.type = gemInput.type === "password" ? "text" : "password";
       });
     }
+    const oaiInput = document.getElementById("openaiKeyInput");
+    if (oaiInput) {
+      oaiInput.addEventListener("input", () => {
+        localStorage.setItem("tcf_openai_key", oaiInput.value.trim());
+        refreshOpenaiStatus();
+      });
+      const oaiToggle = document.getElementById("openaiKeyToggle");
+      if (oaiToggle) oaiToggle.addEventListener("click", () => {
+        oaiInput.type = oaiInput.type === "password" ? "text" : "password";
+      });
+    }
+
     const gemTest = document.getElementById("geminiTestBtn");
     if (gemTest) {
       gemTest.addEventListener("click", async () => {

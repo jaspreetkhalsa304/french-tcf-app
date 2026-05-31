@@ -270,6 +270,16 @@ window.Conversation = (function () {
               })()
             : ""
         }
+        ${
+          (window.Realtime && window.Realtime.hasKey())
+            ? `<div class="row" style="margin-top:6px">
+                 <button class="btn" id="callBtn" style="padding:8px 12px;font-size:13px">📞 Call Camille (live voice)</button>
+                 <span class="muted" style="font-size:12px">Real-time voice — you both talk, you can interrupt.</span>
+               </div>`
+            : (keyOn
+                ? `<div class="muted" style="font-size:12px;margin-top:6px">📞 <strong>Live voice call mode:</strong> add an OpenAI key in Settings to call Camille and practice speaking in real time.</div>`
+                : "")
+        }
         <div class="row">
           <strong style="font-size:13px">TCF speaking tasks:</strong>
           ${tasks.map((t) => `<button class="btn secondary" data-task="${t.id}" style="padding:8px 10px;font-size:13px">${t.title.split("—")[0].trim()}</button>`).join("")}
@@ -323,7 +333,118 @@ window.Conversation = (function () {
       if (lec) lec.addEventListener("click", () => resumeSyllabus(view));
       const idxBtn = view.querySelector("#indexBtn");
       if (idxBtn) idxBtn.addEventListener("click", () => toggleIndex(view));
+      const callB = view.querySelector("#callBtn");
+      if (callB) callB.addEventListener("click", () => openCallModal(view));
     }
+  }
+
+  /* ===== Live voice call (OpenAI Realtime) =====
+   * Opens a modal with a connection state, hangup button, and a streaming
+   * transcript that doubles as proof-of-life. When the call ends, the final
+   * transcript is appended into the main chat as ordinary bubbles so the
+   * student can scroll back to it like a normal session. */
+  let callTranscript = []; // [{who, text}] — accumulated during a live call
+  function openCallModal(view) {
+    if (!window.Realtime || !window.Realtime.hasKey()) {
+      window.App.toast("Add an OpenAI key in Settings to start a call.");
+      return;
+    }
+    closeCallModal(); // ensure no stale modal
+    callTranscript = [];
+    const m = document.createElement("div");
+    m.id = "callModal";
+    m.className = "modal";
+    m.innerHTML = `
+      <div class="modal-card" style="max-width:520px">
+        <div class="modal-head">
+          <h2>📞 Calling Camille…</h2>
+          <button id="callClose" class="icon-btn" aria-label="Close">✕</button>
+        </div>
+        <div id="callState" class="muted" style="margin:4px 0 10px">Connecting…</div>
+        <div id="callLog" class="chat-window" style="height:260px;margin-bottom:10px"></div>
+        <div class="row" style="justify-content:center">
+          <button id="hangupBtn" class="btn" style="background:#c2410c">📵 Hang up</button>
+        </div>
+        <p class="muted" style="font-size:12px;margin-top:10px">
+          Realtime call uses your OpenAI key (~$0.05/min). Speak naturally — you can interrupt Camille.
+        </p>
+      </div>`;
+    document.body.appendChild(m);
+    m.querySelector("#callClose").addEventListener("click", () => endCall(view));
+    m.querySelector("#hangupBtn").addEventListener("click", () => endCall(view));
+    m.addEventListener("click", (e) => { if (e.target.id === "callModal") endCall(view); });
+
+    const stateEl = m.querySelector("#callState");
+    const logEl = m.querySelector("#callLog");
+
+    // Track the in-progress bubble for each side so deltas append in place.
+    let userBubble = null;
+    let aiBubble = null;
+
+    window.Realtime.start({
+      level: window.App.getState().level,
+      onEvent: (type, payload) => {
+        if (type === "state") {
+          if (payload.phase === "connecting") stateEl.textContent = "Connecting…";
+          else if (payload.phase === "live") stateEl.textContent = "🟢 Connected — start talking";
+          else if (payload.phase === "closed") stateEl.textContent = "Call ended.";
+        } else if (type === "transcript") {
+          if (payload.who === "user") {
+            if (!userBubble) {
+              userBubble = document.createElement("div");
+              userBubble.className = "bubble user";
+              logEl.appendChild(userBubble);
+            }
+            userBubble.textContent = payload.text;
+            if (payload.final) {
+              callTranscript.push({ who: "user", text: payload.text });
+              userBubble = null;
+            }
+          } else if (payload.who === "ai") {
+            if (!aiBubble) {
+              aiBubble = document.createElement("div");
+              aiBubble.className = "bubble ai";
+              logEl.appendChild(aiBubble);
+            }
+            aiBubble.textContent = payload.text;
+            if (payload.final) {
+              callTranscript.push({ who: "ai", text: payload.text });
+              aiBubble = null;
+            }
+          }
+          logEl.scrollTop = logEl.scrollHeight;
+        } else if (type === "error") {
+          stateEl.textContent = "⚠️ " + payload.message;
+        }
+      },
+    }).catch((e) => {
+      stateEl.textContent = "⚠️ " + window.Realtime.describeError(e);
+    });
+  }
+
+  function closeCallModal() {
+    const m = document.getElementById("callModal");
+    if (m) m.remove();
+  }
+
+  async function endCall(view) {
+    try { await window.Realtime.stop(); } catch (_) {}
+    closeCallModal();
+    // Append the call transcript into the main chat so it's part of the session.
+    if (callTranscript.length) {
+      const chat = view.querySelector("#chat");
+      if (chat) {
+        const header = document.createElement("div");
+        header.className = "muted";
+        header.style.cssText = "text-align:center;font-size:12px;margin:8px 0";
+        header.textContent = "— 📞 voice call transcript —";
+        chat.appendChild(header);
+        for (const entry of callTranscript) {
+          addBubble(chat, entry.who, entry.text);
+        }
+      }
+    }
+    callTranscript = [];
   }
 
   /* ----- Course index inside the AI tutor: expandable levels + per-topic jump ----- */
