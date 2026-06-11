@@ -34,10 +34,11 @@ window.Lessons = (function () {
 
     function patternRow(p) {
       const isDone = completed[p.id];
+      const icon = isDone ? "✅" : (p.kind === "complex" ? "🧠" : "🧱");
       return `
         <button class="basic-row lesson-row" data-pattern="${p.id}">
           <div class="br-main">
-            <span class="br-fr">${isDone ? "✅" : "🧱"} ${escapeHtml(p.title)}</span>
+            <span class="br-fr">${icon} ${escapeHtml(p.title)}</span>
           </div>
           <div class="br-en"><code style="font-size:12px">${escapeHtml(p.shape)}</code></div>
         </button>`;
@@ -50,6 +51,13 @@ window.Lessons = (function () {
       const isCurrent = lvl === curLevel;
       const open = isCurrent ? "open" : "";
       const pct = total ? Math.round((doneCount / total) * 100) : 0;
+      // Split into basic shapes vs complex-sentence structures so the learner can
+      // see the progression: master the simple shapes first, then move to clauses.
+      const basics = list.filter((p) => p.kind !== "complex");
+      const complex = list.filter((p) => p.kind === "complex");
+      const subSection = (label, rows) => rows.length
+        ? `<h4 class="track-h" style="margin:10px 0 6px">${label} <span class="muted" style="font-size:12px">(${rows.filter((p) => completed[p.id]).length}/${rows.length})</span></h4>${rows.map(patternRow).join("")}`
+        : "";
       return `
         <details class="level-block" ${open} data-level="${lvl}">
           <summary>
@@ -61,7 +69,11 @@ window.Lessons = (function () {
           </summary>
           <div class="level-body">
             ${total ? `<div class="lesson-progress" style="margin:6px 0 10px"><span style="width:${pct}%"></span></div>` : ""}
-            ${total ? list.map(patternRow).join("") : `<p class="muted">Patterns for ${lvl} are coming soon.</p>`}
+            ${total
+              ? (complex.length
+                  ? subSection("🧱 Sentence shapes", basics) + subSection("🧠 Complex sentences", complex)
+                  : list.map(patternRow).join(""))
+              : `<p class="muted">Patterns for ${lvl} are coming soon.</p>`}
             <div class="row" style="margin-top:8px">
               ${!isCurrent ? `<button class="btn secondary" data-setlevel="${lvl}" style="font-size:13px;padding:7px 12px">Make this my level</button>` : ""}
             </div>
@@ -104,7 +116,7 @@ window.Lessons = (function () {
         <div class="card">
           <div class="row">
             <button class="btn secondary" id="backBtn" style="padding:6px 10px;font-size:13px">← Back</button>
-            <span class="badge">🧱 Pattern · ${p.level}</span>
+            <span class="badge">${p.kind === "complex" ? "🧠 Complex sentence" : "🧱 Pattern"} · ${p.level}</span>
             <span class="spacer"></span>
           </div>
           <h2>${escapeHtml(p.title)}</h2>
