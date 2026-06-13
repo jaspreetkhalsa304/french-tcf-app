@@ -112,6 +112,15 @@ window.Lessons = (function () {
     if (!p) return render(view);
 
     function drawExamples() {
+      // Default playback speed for this pattern's examples. Persisted across
+      // sessions so a learner who needs slow audio gets it everywhere.
+      const SLOW_KEY = "tcf_lessons_slow";
+      const slowOn = () => localStorage.getItem(SLOW_KEY) === "1";
+      const setSlow = (on) => localStorage.setItem(SLOW_KEY, on ? "1" : "0");
+      const SLOW_RATE = 0.6; // matches the Grammar lesson player's "🐢 Slow" rate
+      const speakRow = (fr, forceSlow) =>
+        window.Speech.speak(fr, (forceSlow || slowOn()) ? { rate: SLOW_RATE } : undefined);
+
       view.innerHTML = `
         <div class="card">
           <div class="row">
@@ -122,7 +131,13 @@ window.Lessons = (function () {
           <h2>${escapeHtml(p.title)}</h2>
           <div class="tip" style="margin:8px 0"><strong>Shape:</strong> <code>${escapeHtml(p.shape)}</code></div>
           <p>${escapeHtml(p.why)}</p>
-          <h4 class="track-h" style="margin-top:14px">Examples — tap to hear</h4>
+          <div class="row" style="margin-top:10px;align-items:center;gap:8px;flex-wrap:wrap">
+            <h4 class="track-h" style="margin:0;flex:1">Examples — tap to hear</h4>
+            <label style="font-size:13px;display:flex;align-items:center;gap:6px;cursor:pointer">
+              <input type="checkbox" id="slowToggle" ${slowOn() ? "checked" : ""} />
+              🐢 Speak slowly
+            </label>
+          </div>
           <div id="exList"></div>
           <div class="row" style="justify-content:center;margin-top:14px">
             <button class="btn" id="drillBtn">🎯 Start drill →</button>
@@ -131,16 +146,24 @@ window.Lessons = (function () {
       `;
       const exList = view.querySelector("#exList");
       p.examples.forEach((it) => {
-        const row = document.createElement("button");
+        const row = document.createElement("div");
         row.className = "basic-row";
-        row.innerHTML = `<div class="br-main"><span class="br-fr">${escapeHtml(it.fr)}</span> <span class="play-hint">🔊</span></div><div class="br-en">${escapeHtml(it.en)}</div>`;
-        row.addEventListener("click", () => window.Speech.speak(it.fr));
+        row.style.cssText = "display:flex;align-items:center;gap:8px;cursor:default";
+        row.innerHTML = `
+          <div style="flex:1;cursor:pointer" class="ex-text">
+            <div class="br-main"><span class="br-fr">${escapeHtml(it.fr)}</span> <span class="play-hint">🔊</span></div>
+            <div class="br-en">${escapeHtml(it.en)}</div>
+          </div>
+          <button class="ghost-btn slow-btn" title="Speak slowly" style="padding:6px 10px;font-size:13px">🐢</button>`;
+        row.querySelector(".ex-text").addEventListener("click", () => speakRow(it.fr));
+        row.querySelector(".slow-btn").addEventListener("click", (e) => { e.stopPropagation(); speakRow(it.fr, true); });
         exList.appendChild(row);
       });
+      view.querySelector("#slowToggle").addEventListener("change", (e) => setSlow(e.target.checked));
       view.querySelector("#backBtn").addEventListener("click", () => render(view));
       view.querySelector("#drillBtn").addEventListener("click", drawDrill);
       // Auto-play the first example so the learner hears the shape immediately.
-      setTimeout(() => p.examples[0] && window.Speech.speak(p.examples[0].fr), 300);
+      setTimeout(() => p.examples[0] && speakRow(p.examples[0].fr), 300);
     }
 
     function normalize(s) {
