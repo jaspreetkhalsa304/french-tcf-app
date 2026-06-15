@@ -130,6 +130,47 @@ window.BASICS = {
       ],
     },
     {
+      id: "articles",
+      title: "Les articles",
+      emoji: "🔠",
+      blurb: "French puts a tiny word before almost every noun: « le », « la », « un », « du »… English usually drops it. Get these right and your French stops sounding broken. Tap any example to hear it.",
+      grid: false,
+      items: [
+        /* ---- Definite: le / la / l' / les ---- */
+        { fr: "le (masculine)", say: "le chat", ipa: "lə ʃa", en: "« le » before a masculine noun starting with a consonant: le chat (the cat), le pain (the bread)." },
+        { fr: "la (feminine)", say: "la maison", ipa: "la mɛzɔ̃", en: "« la » before a feminine noun starting with a consonant: la maison (the house), la femme (the woman)." },
+        { fr: "l' (vowel/h)", say: "l'ami. l'eau. l'homme.", ipa: "lami / lo / lɔm", en: "« le » or « la » becomes « l' » before a vowel or silent h: l'ami, l'eau, l'homme." },
+        { fr: "les (plural)", say: "les chats. les maisons.", ipa: "le ʃa / le mɛzɔ̃", en: "One « les » for every plural — masculine or feminine: les chats, les maisons." },
+        { fr: "Use le/la/les with likes & general truths", say: "J'aime le café. Les chats sont mignons.", ipa: "ʒɛm lə kafe / le ʃa sɔ̃ miɲɔ̃", en: "Talking about something in general or what you like? Use the definite article — even when English drops it. NOT « J'aime café »." },
+
+        /* ---- Indefinite: un / une / des ---- */
+        { fr: "un (a — masculine)", say: "un livre", ipa: "ɛ̃ livʁ", en: "« un » = 'a' before masculine nouns: un livre, un homme. (Slight nasal sound.)" },
+        { fr: "une (a — feminine)", say: "une pomme", ipa: "yn pɔm", en: "« une » = 'a' before feminine nouns: une pomme, une femme. Pronounce the final 'n'." },
+        { fr: "des (some — plural)", say: "des livres. des pommes.", ipa: "de livʁ / de pɔm", en: "« des » = 'some' (often untranslated in English): des amis, des livres. There's no plural for « un/une » — use « des »." },
+        { fr: "Negation: un/une/des → de", say: "Je n'ai pas de voiture.", ipa: "ʒə nɛ pa də vwatyʁ", en: "After « ne…pas », « un/une/des » all become « de » (or « d' »). « J'ai une voiture » → « Je n'ai pas DE voiture ». Classic A1 mistake." },
+
+        /* ---- Partitive: du / de la / de l' / des ---- */
+        { fr: "du (some — masc.)", say: "du pain", ipa: "dy pɛ̃", en: "« du » = 'some' with a masculine uncountable: du pain (some bread), du café, du fromage. English drops the word — French doesn't." },
+        { fr: "de la (some — fem.)", say: "de la viande", ipa: "də la vjɑ̃d", en: "« de la » = 'some' with a feminine uncountable: de la viande, de la musique, de la chance." },
+        { fr: "de l' (vowel/h)", say: "de l'eau. de l'huile.", ipa: "də lo / də lɥil", en: "« du » or « de la » becomes « de l' » before a vowel: de l'eau, de l'huile, de l'argent." },
+        { fr: "des (some — plural)", say: "des fruits. des œufs.", ipa: "de fʁɥi / de zø", en: "« des » = 'some' with plural countables: des fruits, des œufs, des amis. Same form as the indefinite plural." },
+        { fr: "Negation: partitive → de", say: "Je ne mange pas de pain.", ipa: "ʒə nə mɑ̃ʒ pa də pɛ̃", en: "After « ne…pas », « du / de la / de l' / des » all collapse to « de »: « Je mange du pain » → « Je ne mange pas DE pain »." },
+
+        /* ---- Contractions: à + le, de + le, etc. ---- */
+        { fr: "à + le = au", say: "Je vais au marché.", ipa: "ʒə vɛ o maʁʃe", en: "« à le » is forbidden — it becomes « au »: au marché, au cinéma, au Canada. (« à la » and « à l' » stay.)" },
+        { fr: "à + les = aux", say: "Je parle aux enfants.", ipa: "ʒə paʁl o zɑ̃fɑ̃", en: "« à les » becomes « aux »: aux enfants, aux États-Unis. Same rule, plural." },
+        { fr: "de + le = du", say: "Je viens du Canada.", ipa: "ʒə vjɛ̃ dy kanada", en: "« de le » → « du »: du Canada, du parc, du travail. (« de la » and « de l' » stay.) Don't confuse with the partitive « du »: same form, different job." },
+        { fr: "de + les = des", say: "Je parle des enfants.", ipa: "ʒə paʁl de zɑ̃fɑ̃", en: "« de les » → « des »: des enfants, des amis. Yes, also the same form as 'some' — French recycles." },
+
+        /* ---- Drop-the-article cases ---- */
+        { fr: "Professions: NO article", say: "Je suis professeur. Elle est médecin.", ipa: "ʒə sɥi pʁɔfɛsœʁ / ɛl ɛ medsɛ̃", en: "After « être » + a profession, drop the article: « Je suis professeur » (NOT « un professeur »). Same for nationality, religion." },
+        { fr: "Countries: en (fem.) / au (masc.)", say: "Je vais en France. Je vais au Canada.", ipa: "ʒə vɛ ɑ̃ fʁɑ̃s / ʒə vɛ o kanada", en: "Use « en » before feminine countries (la France, l'Inde) and « au » before masculine (le Canada, le Japon). Cities take « à »: à Paris." },
+
+        /* ---- Quick decision tree to memorise ---- */
+        { fr: "Quick rule", say: "Specific? le/la/les. New thing? un/une/des. Some/any food/drink? du/de la/des. After ne…pas? de.", ipa: "", en: "Memorise this one sentence and 80% of article choices solve themselves." },
+      ],
+    },
+    {
       id: "greetings",
       title: "Premiers mots",
       emoji: "👋",
