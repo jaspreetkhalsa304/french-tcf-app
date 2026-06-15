@@ -167,7 +167,7 @@ window.BASICS = {
         { fr: "Countries: en (fem.) / au (masc.)", say: "Je vais en France. Je vais au Canada.", ipa: "ʒə vɛ ɑ̃ fʁɑ̃s / ʒə vɛ o kanada", en: "Use « en » before feminine countries (la France, l'Inde) and « au » before masculine (le Canada, le Japon). Cities take « à »: à Paris." },
 
         /* ---- Quick decision tree to memorise ---- */
-        { fr: "Quick rule", say: "Specific? le/la/les. New thing? un/une/des. Some/any food/drink? du/de la/des. After ne…pas? de.", ipa: "", en: "Memorise this one sentence and 80% of article choices solve themselves." },
+        { fr: "Quick rule (tap to hear)", say: "Specific? le, la, les. New thing? un, une, des. Some food or drink? du, de la, des. After ne pas? de.", ipa: "", en: "🎯 Specific thing? → le / la / les. New / one of many? → un / une / des. Some food or drink? → du / de la / de l' / des. After « ne…pas »? → everything becomes « de ». Memorise this one rule and 80% of article choices solve themselves." },
       ],
     },
     {
