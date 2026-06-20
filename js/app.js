@@ -617,6 +617,7 @@ window.App = (function () {
     if (window.Reading) registerView("reading", window.Reading.render);
     if (window.Writing) registerView("writing", window.Writing.render);
     if (window.MockTest) registerView("mocktest", window.MockTest.render);
+    if (window.DELFPractice) registerView("delf", window.DELFPractice.render);
     if (window.Progress) registerView("progress", window.Progress.render);
     if (window.Placement) registerView("placement", window.Placement.render);
 
