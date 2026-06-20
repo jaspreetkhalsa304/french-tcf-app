@@ -161,6 +161,8 @@ window.App = (function () {
       listening: { emoji: "🎧", name: "Listen", sub: "Comprehension orale", view: "listening" },
       reading: { emoji: "📖", name: "Read", sub: "Compréhension écrite", view: "reading" },
       writing: { emoji: "✍️", name: "Write", sub: "Expression écrite", view: "writing" },
+      mocktest: { emoji: "📝", name: "Mock TCF", sub: "Timed exam practice", view: "mocktest" },
+      delf: { emoji: "🇫🇷", name: "DELF", sub: "All 4 modules · A1 → C2", view: "delf" },
     };
 
     view.innerHTML = `
