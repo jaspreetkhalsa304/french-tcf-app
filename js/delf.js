@@ -1,11 +1,11 @@
 /* ===== DELF / DALF practice tab =====
- * One tab → pick a level (A1..C2) → pick a module (Listening / Reading /
- * Writing / Speaking) → practise.
- *   • Listening + Reading: offline MCQ banks, scored.
- *   • Writing: open-ended task; Claude grades on the official DELF rubric
- *     when a key is set, otherwise self-check guide.
- *   • Speaking: timed monologue; user records (Web Speech / Gemini),
- *     Claude grades the transcript on the DELF speaking rubric.
+ * Per level (A1..C2), four modules:
+ *   • Listening — offline MCQ + short-answer (B1+); supports multi-Q passages
+ *   • Reading — same shape, longer passages at B2+
+ *   • Writing — Claude-graded with the official rubric descriptors
+ *   • Speaking — Web Speech / Gemini transcript, Claude grades on the rubric
+ *
+ * Listening & Reading run as a timed exam (exam mode) with a section timer.
  */
 window.DELFPractice = (function () {
   const LEVELS = window.DELF.levels;
@@ -19,6 +19,7 @@ window.DELFPractice = (function () {
 
   function drawLevelHub(view, lvl) {
     const fmt = window.DELF.format[lvl] || {};
+    const counts = moduleCounts(lvl);
     view.innerHTML = `
       <div class="card">
         <div class="row">
@@ -26,7 +27,7 @@ window.DELFPractice = (function () {
           <span class="badge">${window.DELF.levelNames[lvl]}</span>
         </div>
         <h2>DELF practice — ${lvl}</h2>
-        <p class="muted">Practise the four official DELF modules at your chosen level. Listening &amp; Reading are scored immediately; Writing &amp; Speaking are graded by the AI tutor on the official DELF rubric.</p>
+        <p class="muted">Practise the four official DELF modules. Listening &amp; Reading run as a timed exam (full session, scored /25). Writing &amp; Speaking are graded by Claude on the official DELF descriptors.</p>
 
         <div class="setting-group">
           <label for="delfLvlSel">Choose level</label>
@@ -39,22 +40,22 @@ window.DELFPractice = (function () {
           <div class="skill-card" data-mod="listening">
             <div class="emoji">🎧</div>
             <div class="name">Compréhension de l'oral</div>
-            <div class="sub">${esc(fmt.listen || "")}</div>
+            <div class="sub">${esc(fmt.listen || "")}<br><span class="muted">${counts.listening} questions</span></div>
           </div>
           <div class="skill-card" data-mod="reading">
             <div class="emoji">📖</div>
             <div class="name">Compréhension des écrits</div>
-            <div class="sub">${esc(fmt.read || "")}</div>
+            <div class="sub">${esc(fmt.read || "")}<br><span class="muted">${counts.reading} questions</span></div>
           </div>
           <div class="skill-card" data-mod="writing">
             <div class="emoji">✍️</div>
             <div class="name">Production écrite</div>
-            <div class="sub">${esc(fmt.write || "")}</div>
+            <div class="sub">${esc(fmt.write || "")}<br><span class="muted">${counts.writing} tasks · official rubric</span></div>
           </div>
           <div class="skill-card" data-mod="speaking">
             <div class="emoji">🗣️</div>
             <div class="name">Production orale</div>
-            <div class="sub">${esc(fmt.speak || "")}</div>
+            <div class="sub">${esc(fmt.speak || "")}<br><span class="muted">${counts.speaking} tasks · official rubric</span></div>
           </div>
         </div>
 
@@ -67,125 +68,300 @@ window.DELFPractice = (function () {
     });
   }
 
+  function moduleCounts(lvl) {
+    return {
+      listening: countQuestions(window.DELF.listening[lvl]),
+      reading: countQuestions(window.DELF.reading[lvl]),
+      writing: (window.DELF.writing[lvl] || []).length,
+      speaking: (window.DELF.speaking[lvl] || []).length,
+    };
+  }
+  function countQuestions(bank) {
+    if (!bank) return 0;
+    let n = 0;
+    bank.forEach((it) => { n += it.items ? it.items.length : 1; });
+    return n;
+  }
+
   function openModule(view, lvl, mod) {
-    if (mod === "listening") return openListening(view, lvl);
-    if (mod === "reading") return openReading(view, lvl);
+    if (mod === "listening") return openExam(view, lvl, "listening", "🎧 Compréhension de l'oral", true);
+    if (mod === "reading") return openExam(view, lvl, "reading", "📖 Compréhension des écrits", false);
     if (mod === "writing") return openWriting(view, lvl);
     if (mod === "speaking") return openSpeaking(view, lvl);
   }
 
   /* ====================================================
-   * Listening module
+   * Listening / Reading — timed exam mode with multi-Q passages
    * ==================================================== */
-  function openListening(view, lvl) {
-    const items = (window.DELF.listening[lvl] || []).slice();
-    if (!items.length) return noItems(view, lvl, "Listening");
-    runMCQ(view, lvl, "🎧 Compréhension de l'oral", items, true);
+  function openExam(view, lvl, modKey, badge, isAudio) {
+    const bank = (window.DELF[modKey][lvl] || []).slice();
+    if (!bank.length) return noItems(view, lvl, modKey);
+    const totalQ = countQuestions(bank);
+    const examSec = (window.DELF.examDuration[lvl] && window.DELF.examDuration[lvl][modKey]) || 25 * 60;
+    // Intro card with timer info + start
+    view.innerHTML = `
+      <div class="card">
+        <div class="row">
+          <span class="badge">${badge}</span>
+          <span class="badge">DELF ${lvl}</span>
+          <span class="spacer"></span>
+          <button class="ghost-btn" id="backBtn">← Back</button>
+        </div>
+        <h2>${badge} — ${lvl}</h2>
+        <p class="muted">This module contains <strong>${totalQ}</strong> questions across <strong>${bank.length}</strong> document(s). A countdown of <strong>${fmtSec(examSec)}</strong> runs in the background — answer at exam pace. Short-answer items at B1+ are graded by Claude when a key is set.</p>
+        <div class="tip">⏱️ ${isAudio ? "Each audio plays automatically (you can replay). " : ""}You can navigate freely between questions before submitting. Submit to see your /25 score with a breakdown.</div>
+        <div class="row" style="margin-top:14px">
+          <button class="btn blue" id="startBtn">Start exam →</button>
+        </div>
+      </div>
+    `;
+    view.querySelector("#backBtn").addEventListener("click", () => drawLevelHub(view, lvl));
+    view.querySelector("#startBtn").addEventListener("click", () => runExam(view, lvl, modKey, badge, isAudio, bank, examSec));
   }
 
-  /* ====================================================
-   * Reading module
-   * ==================================================== */
-  function openReading(view, lvl) {
-    const items = (window.DELF.reading[lvl] || []).slice();
-    if (!items.length) return noItems(view, lvl, "Reading");
-    runMCQ(view, lvl, "📖 Compréhension des écrits", items, false);
-  }
+  function runExam(view, lvl, modKey, badge, isAudio, bank, examSec) {
+    // Flatten bank into a list of questions, each linked back to its doc index.
+    const flat = [];
+    bank.forEach((doc, di) => {
+      const items = doc.items || [doc];
+      items.forEach((q, qi) => flat.push({ q, di, qi, doc }));
+    });
+    const responses = new Array(flat.length).fill(null); // store choice index or short text
+    let cur = 0;
+    let remaining = examSec;
+    let timer = null;
 
-  function runMCQ(view, lvl, badge, items, isAudio) {
-    let i = 0;
-    const answers = []; // {ok}
+    function tick() {
+      remaining--;
+      const el = document.getElementById("examTimer");
+      if (el) {
+        el.textContent = "⏱️ " + fmtSec(Math.max(0, remaining));
+        if (remaining <= 60) el.style.color = "var(--accent)";
+      }
+      if (remaining <= 0) { clearInterval(timer); submit(true); }
+    }
 
     function draw() {
-      const item = items[i];
+      const f = flat[cur];
+      const doc = f.doc;
+      const q = f.q;
+      const isShort = q.kind === "short";
+      // Only show audio/passage UI when this is the FIRST question of its doc.
+      const firstOfDoc = (cur === 0) || flat[cur - 1].di !== f.di;
+      const docBlock = firstOfDoc
+        ? (isAudio
+            ? `<div class="row" style="margin:10px 0">
+                 <button class="btn blue" id="playAudio">▶︎ Play audio</button>
+                 <button class="btn secondary" id="playSlow">🐢 Slow</button>
+                 <span class="muted">${doc.items ? `Document ${f.di + 1} — ${doc.items.length} questions` : ""}</span>
+               </div>`
+            : doc.passage
+              ? `<div class="passage" style="white-space:pre-wrap">${esc(doc.passage)}</div>`
+              : "")
+        : (isAudio
+            ? `<div class="row" style="margin:6px 0"><button class="btn secondary" id="playAudio">▶︎ Replay audio</button> <button class="btn secondary" id="playSlow">🐢 Slow</button></div>`
+            : doc.passage && doc.items ? `<details style="margin:6px 0"><summary class="muted">Show document again</summary><div class="passage" style="white-space:pre-wrap;margin-top:6px">${esc(doc.passage)}</div></details>` : "");
+
       view.innerHTML = `
         <div class="card">
           <div class="row">
             <span class="badge">${badge}</span>
             <span class="badge">${lvl}</span>
-            <span class="badge">${i + 1} / ${items.length}</span>
+            <span class="badge">${cur + 1} / ${flat.length}</span>
             <span class="spacer"></span>
-            <button class="ghost-btn" id="backBtn">← Back</button>
+            <span class="badge" id="examTimer">⏱️ ${fmtSec(remaining)}</span>
           </div>
-          ${isAudio
-            ? `<div class="row" style="margin:10px 0">
-                 <button class="btn blue" id="playAudio">▶︎ Play audio</button>
-                 <button class="btn secondary" id="playSlow">🐢 Slow</button>
-                 <span class="muted">Listen, then answer.</span>
-               </div>`
-            : item.passage
-              ? `<div class="passage">${esc(item.passage)}</div>`
-              : ""}
-          <h3 style="margin-top:10px">${esc(item.q)}</h3>
-          <div id="opts"></div>
-          <div id="after"></div>
+          ${docBlock}
+          <h3 style="margin-top:10px">${esc(q.q)}</h3>
+          <div id="answerArea"></div>
+          <div class="row" style="margin-top:14px;gap:8px;flex-wrap:wrap">
+            <button class="btn secondary" id="prevBtn" ${cur === 0 ? "disabled" : ""}>← Previous</button>
+            <button class="btn" id="nextBtn" ${cur === flat.length - 1 ? "disabled" : ""}>Next →</button>
+            <span class="spacer"></span>
+            <button class="btn secondary" id="navBtn">📋 All questions</button>
+            <button class="btn blue" id="submitBtn">Submit exam</button>
+          </div>
         </div>
       `;
-      view.querySelector("#backBtn").addEventListener("click", () => {
-        window.Speech.cancel();
-        drawLevelHub(view, lvl);
-      });
+
       if (isAudio) {
-        const speakIt = (rate) => window.Speech.speak(item.audio, rate ? { rate } : {});
-        view.querySelector("#playAudio").addEventListener("click", () => speakIt());
-        view.querySelector("#playSlow").addEventListener("click", () => speakIt(0.6));
-        setTimeout(() => speakIt(), 300);
+        const speakIt = (rate) => window.Speech.speak(doc.audio, rate ? { rate } : {});
+        const pa = view.querySelector("#playAudio");
+        const ps = view.querySelector("#playSlow");
+        if (pa) pa.addEventListener("click", () => speakIt());
+        if (ps) ps.addEventListener("click", () => speakIt(0.6));
+        if (firstOfDoc) setTimeout(() => speakIt(), 250);
       }
-      const optsEl = view.querySelector("#opts");
-      item.options.forEach((opt, oi) => {
-        const b = document.createElement("button");
-        b.className = "mcq-option";
-        b.textContent = opt;
-        b.addEventListener("click", () => choose(oi, b, optsEl, item));
-        optsEl.appendChild(b);
-      });
+
+      const ans = view.querySelector("#answerArea");
+      if (isShort) {
+        const prev = responses[cur] || "";
+        ans.innerHTML = `<textarea id="shortIn" class="write-area" placeholder="Réponse courte en français…" style="min-height:80px">${esc(prev)}</textarea>`;
+        ans.querySelector("#shortIn").addEventListener("input", (e) => { responses[cur] = e.target.value; });
+      } else {
+        const prev = responses[cur];
+        q.options.forEach((opt, oi) => {
+          const b = document.createElement("button");
+          b.className = "mcq-option" + (prev === oi ? " selected" : "");
+          b.textContent = opt;
+          b.addEventListener("click", () => {
+            responses[cur] = oi;
+            ans.querySelectorAll(".mcq-option").forEach((el) => el.classList.remove("selected"));
+            b.classList.add("selected");
+          });
+          ans.appendChild(b);
+        });
+      }
+
+      view.querySelector("#prevBtn").addEventListener("click", () => { if (cur > 0) { window.Speech.cancel(); cur--; draw(); } });
+      view.querySelector("#nextBtn").addEventListener("click", () => { if (cur < flat.length - 1) { window.Speech.cancel(); cur++; draw(); } });
+      view.querySelector("#navBtn").addEventListener("click", showNav);
+      view.querySelector("#submitBtn").addEventListener("click", () => submit(false));
     }
 
-    function choose(oi, btn, optsEl, item) {
-      const all = optsEl.querySelectorAll(".mcq-option");
-      all.forEach((el) => { el.classList.add("disabled"); el.onclick = null; });
-      const ok = oi === item.answer;
-      if (ok) btn.classList.add("correct");
-      else { btn.classList.add("wrong"); all[item.answer].classList.add("correct"); }
-      answers.push({ ok });
-      const after = view.querySelector("#after");
-      after.innerHTML = `
-        ${isAudio ? `<div class="passage" style="margin-top:10px"><span class="muted">Transcript:</span> ${esc(item.audio)}</div>` : ""}
-        <div class="row" style="justify-content:flex-end; margin-top:12px">
-          <button class="btn" id="nextQ">${i === items.length - 1 ? "See results" : "Next →"}</button>
-        </div>`;
-      after.querySelector("#nextQ").addEventListener("click", () => {
-        if (i === items.length - 1) finish();
-        else { i++; draw(); }
-      });
+    function showNav() {
+      const grid = flat.map((f, i) => {
+        const done = responses[i] !== null && responses[i] !== "" && responses[i] !== undefined;
+        return `<button class="mcq-option" style="min-width:48px;${done ? "background:rgba(80,200,120,.2);" : ""}${i === cur ? "border:2px solid var(--accent);" : ""}" data-nav="${i}">${i + 1}${done ? " ✓" : ""}</button>`;
+      }).join("");
+      const modal = document.createElement("div");
+      modal.className = "modal";
+      modal.innerHTML = `<div class="modal-card" style="max-width:520px"><div class="modal-head"><h2>Questions</h2><button class="icon-btn" id="navClose">✕</button></div><div style="display:flex;flex-wrap:wrap;gap:6px">${grid}</div><p class="muted" style="margin-top:10px;font-size:13px">Green = answered. Click any to jump.</p></div>`;
+      document.body.appendChild(modal);
+      modal.querySelector("#navClose").addEventListener("click", () => modal.remove());
+      modal.querySelectorAll("[data-nav]").forEach((b) => b.addEventListener("click", () => {
+        cur = parseInt(b.dataset.nav, 10);
+        modal.remove();
+        window.Speech.cancel();
+        draw();
+      }));
     }
 
-    function finish() {
+    async function submit(timedOut) {
+      clearInterval(timer);
       window.Speech.cancel();
-      const correct = answers.filter((a) => a.ok).length;
-      const pct = Math.round((correct / items.length) * 100);
-      const score25 = Math.round((correct / items.length) * 25);
-      const skill = isAudio ? "listening" : "reading";
-      window.App.recordResult(skill, pct);
-      view.innerHTML = `
-        <div class="card center">
-          <h2>${badge}</h2>
-          <div class="score-ring ${pct >= 70 ? "good" : pct >= 50 ? "mid" : "low"}">${correct} / ${items.length}</div>
-          <p class="muted">${pct}% · ≈ ${score25} / 25 on the official DELF scale</p>
-          <div class="tip" style="text-align:left;margin:12px 0">
-            <strong>${verdict(score25)}</strong><br>
-            <span class="muted">DELF passing mark per module is 5/25; the overall pass is 50/100.</span>
-          </div>
-          <div class="row" style="justify-content:center;margin-top:14px">
-            <button class="btn blue" id="retry">Try again</button>
-            <button class="btn secondary" id="back">← Back to DELF ${lvl}</button>
-          </div>
-        </div>`;
-      view.querySelector("#retry").addEventListener("click", () => (isAudio ? openListening(view, lvl) : openReading(view, lvl)));
-      view.querySelector("#back").addEventListener("click", () => drawLevelHub(view, lvl));
+      // MCQ scoring: instant. Short-answer: needs Claude. Each item is worth 1 raw point.
+      const shortIdxs = flat.map((f, i) => f.q.kind === "short" ? i : -1).filter((i) => i >= 0);
+      const mcqResults = flat.map((f, i) => {
+        if (f.q.kind === "short") return null;
+        return { idx: i, ok: responses[i] === f.q.answer };
+      });
+      let shortResults = shortIdxs.map((i) => ({ idx: i, score: 0, max: 2, comment: "" }));
+
+      if (shortIdxs.length && window.AI.hasKey()) {
+        showGrading(view, lvl, badge, `Grading ${shortIdxs.length} short-answer item(s)…`);
+        try {
+          shortResults = await gradeShortBatch(flat, responses, shortIdxs);
+        } catch (e) {
+          // Soft-fail: give 0 on short answers
+          shortResults = shortIdxs.map((i) => ({ idx: i, score: 0, max: 2, comment: "Grading failed: " + window.AI.describeError(e) }));
+        }
+      } else if (shortIdxs.length) {
+        // No key: skip short grading (count as 0, flag in result)
+        shortResults = shortIdxs.map((i) => {
+          const ans = responses[i];
+          return { idx: i, score: ans && ans.trim().length > 5 ? 1 : 0, max: 2, comment: "Self-check only (add an API key for proper grading)" };
+        });
+      }
+
+      finishExam(view, lvl, modKey, badge, isAudio, flat, responses, mcqResults, shortResults, timedOut, examSec - remaining);
     }
 
+    timer = setInterval(tick, 1000);
     draw();
+  }
+
+  async function gradeShortBatch(flat, responses, shortIdxs) {
+    const system = `You are a certified DELF examiner grading short-answer comprehension items. ${window.DELF.rubric.shortAnswer} Return ONLY valid JSON, no prose.`;
+    const items = shortIdxs.map((i) => ({
+      idx: i,
+      q: flat[i].q.q,
+      model: flat[i].q.model,
+      candidate: (responses[i] || "").trim(),
+    }));
+    const user = `Grade each item independently. Each is worth 0, 1, or 2 points (full DELF short-answer scale).
+Items to grade:
+${JSON.stringify(items, null, 2)}
+
+Return JSON:
+{
+  "results": [
+    {"idx": <int matches item.idx>, "score": <0|1|2>, "max": 2, "comment": "<short FR or EN feedback>"},
+    ...
+  ]
+}`;
+    const raw = await window.AI.call({
+      system,
+      messages: [{ role: "user", content: user }],
+      maxTokens: 1200,
+    });
+    const data = window.AI.parseJSON(raw);
+    if (!data || !data.results) throw new Error("Bad grading response");
+    return data.results;
+  }
+
+  function showGrading(view, lvl, badge, msg) {
+    view.innerHTML = `<div class="card center"><h2>${badge}</h2><div class="tip">⏳ ${esc(msg)}</div><p class="muted">This may take 10–30 seconds for long passages with many short-answer items.</p></div>`;
+  }
+
+  function finishExam(view, lvl, modKey, badge, isAudio, flat, responses, mcqResults, shortResults, timedOut, secsUsed) {
+    // Combine scores into /25 (DELF section scale)
+    let raw = 0, maxRaw = 0;
+    const perQ = flat.map((f, i) => {
+      if (f.q.kind === "short") {
+        const r = shortResults.find((x) => x.idx === i);
+        const sc = r ? r.score : 0;
+        const mx = r ? r.max : 2;
+        raw += sc; maxRaw += mx;
+        return { i, kind: "short", q: f.q.q, model: f.q.model, candidate: responses[i] || "", score: sc, max: mx, comment: r ? r.comment : "" };
+      }
+      const r = mcqResults.find((x) => x && x.idx === i);
+      const ok = r && r.ok;
+      raw += ok ? 1 : 0; maxRaw += 1;
+      return { i, kind: "mcq", q: f.q.q, options: f.q.options, correctIdx: f.q.answer, chosenIdx: responses[i], ok };
+    });
+    const score25 = Math.round((raw / maxRaw) * 25);
+    const pct = Math.round((raw / maxRaw) * 100);
+    window.App.recordResult(isAudio ? "listening" : "reading", pct);
+
+    const rowsHTML = perQ.map((r) => {
+      if (r.kind === "mcq") {
+        return `<div style="margin:10px 0;padding:10px;background:rgba(255,255,255,.04);border-radius:6px">
+          <div class="row"><strong style="font-size:13px">Q${r.i + 1} · ${r.ok ? "✅" : "❌"}</strong><span class="spacer"></span><span class="muted">${r.ok ? "1" : "0"}/1</span></div>
+          <div style="font-size:13px;margin-top:4px">${esc(r.q)}</div>
+          <div class="muted" style="font-size:12px;margin-top:4px">${r.chosenIdx == null ? "(no answer)" : "Your answer: " + esc(r.options[r.chosenIdx])}</div>
+          ${!r.ok ? `<div class="muted" style="font-size:12px">Correct: ${esc(r.options[r.correctIdx])}</div>` : ""}
+        </div>`;
+      }
+      return `<div style="margin:10px 0;padding:10px;background:rgba(255,255,255,.04);border-radius:6px">
+        <div class="row"><strong style="font-size:13px">Q${r.i + 1} · ${r.score === r.max ? "✅" : r.score > 0 ? "🟡" : "❌"} (short)</strong><span class="spacer"></span><span class="muted">${r.score}/${r.max}</span></div>
+        <div style="font-size:13px;margin-top:4px">${esc(r.q)}</div>
+        <div class="muted" style="font-size:12px;margin-top:4px">Your answer: ${esc(r.candidate || "(empty)")}</div>
+        <div class="muted" style="font-size:12px">Model: ${esc(r.model || "")}</div>
+        ${r.comment ? `<div class="muted" style="font-size:12px;font-style:italic;margin-top:4px">${esc(r.comment)}</div>` : ""}
+      </div>`;
+    }).join("");
+
+    view.innerHTML = `
+      <div class="card center">
+        <h2>${timedOut ? "⏰ Time's up — " : ""}${badge}</h2>
+        <div class="score-ring ${pct >= 70 ? "good" : pct >= 50 ? "mid" : "low"}">${score25} / 25</div>
+        <p class="muted">${raw} / ${maxRaw} raw · ${pct}% · time used ${fmtSec(secsUsed)}</p>
+        <div class="tip" style="text-align:left;margin:12px 0">
+          <strong>${verdict(score25)}</strong><br>
+          <span class="muted">DELF passing mark per module is 5/25; the overall pass is 50/100.</span>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Question-by-question</h3>
+        ${rowsHTML}
+        <div class="row" style="justify-content:center;margin-top:14px">
+          <button class="btn blue" id="retry">Try again</button>
+          <button class="btn secondary" id="back">← Back to DELF ${lvl}</button>
+        </div>
+      </div>`;
+    view.querySelector("#retry").addEventListener("click", () => openExam(view, lvl, modKey, badge, isAudio));
+    view.querySelector("#back").addEventListener("click", () => drawLevelHub(view, lvl));
   }
 
   /* ====================================================
@@ -193,7 +369,7 @@ window.DELFPractice = (function () {
    * ==================================================== */
   function openWriting(view, lvl) {
     const tasks = (window.DELF.writing[lvl] || []).slice();
-    if (!tasks.length) return noItems(view, lvl, "Writing");
+    if (!tasks.length) return noItems(view, lvl, "writing");
     drawTaskList(view, lvl, "✍️ Production écrite", tasks, openWritingTask);
   }
 
@@ -207,7 +383,7 @@ window.DELFPractice = (function () {
           <button class="ghost-btn" id="backBtn">← Back</button>
         </div>
         <h2>${badge} — ${lvl}</h2>
-        <p class="muted">Choose a task. ${window.AI.hasKey() ? "Your response is graded on the official DELF rubric." : "Add an API key in Settings (⚙️) for AI grading."}</p>
+        <p class="muted">Choose a task. ${window.AI.hasKey() ? "Your response is graded on the official DELF descriptors." : "Add an API key in Settings (⚙️) for AI grading."}</p>
         <div id="taskList"></div>
       </div>
     `;
@@ -279,24 +455,23 @@ window.DELFPractice = (function () {
     }
 
     fb.innerHTML = `<div class="tip">⏳ Grading on the official DELF ${lvl} rubric…</div>`;
-    const system = `You are a certified DELF/DALF examiner. Grade the candidate's written response strictly using the official DELF ${lvl} Production écrite rubric (25 points total, typically: respect of the instruction, coherence/cohesion, lexical range and accuracy, morpho-syntactic range and accuracy). Always return valid JSON only, no prose outside the JSON.`;
+    const rubric = (window.DELF.rubric.writing && window.DELF.rubric.writing[lvl]) || "";
+    const system = `You are a certified DELF/DALF examiner. Use the following OFFICIAL rubric verbatim as your grading reference — do not deviate from its criteria, weights, or scale. Return valid JSON only.
+
+${rubric}`;
     const user = `Task instructions (in French):
 """${task.instruction}"""
 
 Target length: ${task.minWords}+ words.
-Candidate level being assessed: DELF ${lvl}.
 Candidate response:
 """${text}"""
 
-Return JSON with this shape:
+Grade strictly according to the rubric above. Score each criterion using the EXACT max points specified in the rubric. Return JSON:
 {
-  "score25": <integer 0-25>,
+  "score25": <integer 0-25, sum of criteria>,
   "band": "<CEFR band you'd give this text, e.g. A2 / A2+ / B1->",
   "criteria": [
-    {"name": "Respect de la consigne", "score": <int 0-5 or 0-6>, "max": <int>, "comment": "<short FR or EN>"},
-    {"name": "Cohérence et cohésion", "score": <int>, "max": <int>, "comment": "<short>"},
-    {"name": "Lexique", "score": <int>, "max": <int>, "comment": "<short>"},
-    {"name": "Morphosyntaxe", "score": <int>, "max": <int>, "comment": "<short>"}
+    {"name": "<criterion name from rubric>", "score": <int>, "max": <int from rubric>, "comment": "<short FR or EN>"}
   ],
   "strengths": ["<bullet>", "<bullet>"],
   "fixes": [
@@ -309,18 +484,18 @@ Return JSON with this shape:
       const raw = await window.AI.call({
         system,
         messages: [{ role: "user", content: user }],
-        maxTokens: 1600,
+        maxTokens: 1800,
       });
       const data = window.AI.parseJSON(raw);
       if (!data) throw new Error("parse");
-      renderWritingFeedback(fb, data, words, task);
+      renderRubricFeedback(fb, data, words, task);
       window.App.recordResult("writing", Math.round((data.score25 / 25) * 100));
     } catch (e) {
       fb.innerHTML = `<div class="tip">⚠️ ${esc(window.AI.describeError(e))}</div>`;
     }
   }
 
-  function renderWritingFeedback(fb, d, words, task) {
+  function renderRubricFeedback(fb, d, words, task) {
     const pct = Math.round((d.score25 / 25) * 100);
     const crit = (d.criteria || []).map((c) =>
       `<div style="margin:6px 0">
@@ -355,7 +530,7 @@ Return JSON with this shape:
    * ==================================================== */
   function openSpeaking(view, lvl) {
     const tasks = (window.DELF.speaking[lvl] || []).slice();
-    if (!tasks.length) return noItems(view, lvl, "Speaking");
+    if (!tasks.length) return noItems(view, lvl, "speaking");
     drawTaskList(view, lvl, "🗣️ Production orale", tasks, openSpeakingTask);
   }
 
@@ -419,8 +594,6 @@ Return JSON with this shape:
       stopBtn.disabled = false;
       startTimer();
       try {
-        // captureTranscript routes through Gemini when its key is set, otherwise Web Speech.
-        // It resolves with the final transcript when stopCapture() is called or silence is hit.
         const transcript = await window.Speech.captureTranscript(
           (s) => { if (s && !recording) stateEl.textContent = s; },
           { silenceMs: 3500 }
@@ -436,7 +609,6 @@ Return JSON with this shape:
     function stopRec() {
       if (!recording) return;
       try { window.Speech.stopCapture(); } catch (_) {}
-      // captureTranscript's promise will resolve next; finishRec runs there.
     }
 
     function finishRec() {
@@ -451,7 +623,6 @@ Return JSON with this shape:
     stopBtn.addEventListener("click", stopRec);
     view.querySelector("#gradeBtn").addEventListener("click", () => {
       if (recording) stopRec();
-      // Small delay so any in-flight transcript can land in the textarea.
       setTimeout(() => gradeSpeaking(view, lvl, task, editEl.value.trim(), secs), 150);
     });
   }
@@ -479,23 +650,24 @@ Return JSON with this shape:
     }
 
     fb.innerHTML = `<div class="tip">⏳ Grading on the DELF ${lvl} Production orale rubric…</div>`;
-    const system = `You are a certified DELF/DALF examiner grading a candidate's spoken production from a transcript. Grade strictly on the official DELF ${lvl} Production orale rubric (25 points: typically covering the prompt, coherence and fluency, lexical range, morpho-syntactic control, phonological aspects — note phonology is uncertain from a transcript and should be flagged as such). Return JSON only.`;
+    const rubric = (window.DELF.rubric.speaking && window.DELF.rubric.speaking[lvl]) || "";
+    const system = `You are a certified DELF/DALF examiner grading a candidate's spoken production from a transcript. Use the following OFFICIAL rubric verbatim. Note that phonology cannot be assessed reliably from a transcript — score it conservatively and flag the limit in your comment.
+
+${rubric}
+
+Return JSON only.`;
     const user = `Task (in French):
 """${task.instruction}"""
 Target duration: ~${task.durationSec}s. Actual: ${durationSec}s. Words: ${words}.
 Transcript of the candidate's spoken response:
 """${text}"""
 
-Return JSON with this shape:
+Grade strictly. Each criterion's max must match the rubric above. Return JSON:
 {
   "score25": <int 0-25>,
   "band": "<CEFR band>",
   "criteria": [
-    {"name":"Couverture de la tâche","score":<int>,"max":<int>,"comment":"<short>"},
-    {"name":"Cohérence / fluidité","score":<int>,"max":<int>,"comment":"<short>"},
-    {"name":"Lexique","score":<int>,"max":<int>,"comment":"<short>"},
-    {"name":"Morphosyntaxe","score":<int>,"max":<int>,"comment":"<short>"},
-    {"name":"Phonologie (estimée)","score":<int>,"max":<int>,"comment":"transcript only — limited"}
+    {"name":"<from rubric>","score":<int>,"max":<int from rubric>,"comment":"<short>"}
   ],
   "strengths": ["..."],
   "fixes": [{"original":"<FR snippet>","corrected":"<FR corrected>","why":"<short>"}],
@@ -505,11 +677,11 @@ Return JSON with this shape:
       const raw = await window.AI.call({
         system,
         messages: [{ role: "user", content: user }],
-        maxTokens: 1600,
+        maxTokens: 1800,
       });
       const data = window.AI.parseJSON(raw);
       if (!data) throw new Error("parse");
-      renderWritingFeedback(fb, data, words, task); // same renderer
+      renderRubricFeedback(fb, data, words, task);
       window.App.recordResult("speaking", Math.round((data.score25 / 25) * 100));
     } catch (e) {
       fb.innerHTML = `<div class="tip">⚠️ ${esc(window.AI.describeError(e))}</div>`;
