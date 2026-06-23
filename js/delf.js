@@ -202,14 +202,20 @@ window.DELFPractice = (function () {
         const prev = responses[cur];
         q.options.forEach((opt, oi) => {
           const b = document.createElement("button");
+          b.type = "button";
           b.className = "mcq-option" + (prev === oi ? " selected" : "");
           b.textContent = opt;
-          b.addEventListener("click", () => {
-            responses[cur] = oi;
-            ans.querySelectorAll(".mcq-option").forEach((el) => el.classList.remove("selected"));
-            b.classList.add("selected");
-          });
+          b.dataset.oi = String(oi);
           ans.appendChild(b);
+        });
+        ans.addEventListener("click", (ev) => {
+          const t = ev.target.closest(".mcq-option");
+          if (!t || !ans.contains(t)) return;
+          const oi = parseInt(t.dataset.oi, 10);
+          if (isNaN(oi)) return;
+          responses[cur] = oi;
+          ans.querySelectorAll(".mcq-option").forEach((el) => el.classList.remove("selected"));
+          t.classList.add("selected");
         });
       }
 
