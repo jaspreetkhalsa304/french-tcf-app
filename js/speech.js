@@ -28,14 +28,36 @@ window.Speech = (function () {
     const stored = localStorage.getItem("tcf_neural_voice");
     return (stored && NEURAL_BILINGUAL.includes(stored)) ? stored : "Lea";
   }
+  let neuralDisabledThisSession = false;
+  let neuralDisabledReason = "";
   function neuralAvailable() {
-    return !!(window.puter && window.puter.ai && window.puter.ai.txt2speech);
+    return !!(window.puter && window.puter.ai && window.puter.ai.txt2speech) && !neuralDisabledThisSession;
   }
   function useNeural() {
     // Default ON when Puter loaded; user can disable via Settings (tcf_tts="native").
     const pref = localStorage.getItem("tcf_tts");
     if (pref === "native") return false;
     return neuralAvailable();
+  }
+  /* Permanently fall back to the built-in voice for the rest of this session.
+   * Used when Puter returns "low balance"/quota/auth errors — retrying just spams
+   * the console and adds latency. */
+  function disableNeuralForSession(reason) {
+    if (neuralDisabledThisSession) return;
+    neuralDisabledThisSession = true;
+    neuralDisabledReason = reason || "neural unavailable";
+    try { cancelNeural(); } catch (_) {}
+    try { console.warn("[Speech] Neural TTS disabled for this session: " + neuralDisabledReason); } catch (_) {}
+    // Surface a one-time toast so the user knows why the voice changed.
+    try {
+      if (typeof window.toast === "function") {
+        window.toast("Neural voice unavailable (" + neuralDisabledReason + ") — using the built-in voice.");
+      }
+    } catch (_) {}
+  }
+  function isQuotaError(err) {
+    const msg = String((err && (err.message || err.error || err.code)) || err || "").toLowerCase();
+    return /balance|quota|insufficient|payment|credit|limit reached|exceed|429|402|401|unauthor|forbidden/.test(msg);
   }
   let curAudio = null; // currently-playing neural audio, so we can cancel it
   function langKey(langStr) {
@@ -59,7 +81,12 @@ window.Speech = (function () {
       };
       Promise.resolve(window.puter.ai.txt2speech(text, opts))
         .then((audio) => {
-          if (!audio || typeof audio.play !== "function") { finish(false); return; }
+          // Puter sometimes resolves with an error-shaped object instead of audio.
+          if (!audio || typeof audio.play !== "function") {
+            if (isQuotaError(audio)) disableNeuralForSession("low balance / quota");
+            finish(false);
+            return;
+          }
           curAudio = audio;
           audio.playbackRate = rate || 1;
           audio.onended = () => { if (curAudio === audio) curAudio = null; finish(true); };
@@ -70,7 +97,10 @@ window.Speech = (function () {
           const ms = Math.max(4000, (text.length / Math.max(0.5, rate || 1)) * 95 + 3000);
           setTimeout(() => finish(true), ms);
         })
-        .catch(() => finish(false));
+        .catch((err) => {
+          if (isQuotaError(err)) disableNeuralForSession("low balance / quota");
+          finish(false);
+        });
     });
   }
   function cancelNeural() {
@@ -695,6 +725,9 @@ window.Speech = (function () {
     neuralOneVoice,
     neuralVoiceName,
     NEURAL_BILINGUAL,
+    disableNeuralForSession,
+    isNeuralDisabled: () => neuralDisabledThisSession,
+    neuralDisabledReason: () => neuralDisabledReason,
     listen,
     stopListening,
     isListening,
