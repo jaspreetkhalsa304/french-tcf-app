@@ -163,6 +163,7 @@ window.App = (function () {
       writing: { emoji: "✍️", name: "Write", sub: "Expression écrite", view: "writing" },
       mocktest: { emoji: "📝", name: "Mock TCF", sub: "Timed exam practice", view: "mocktest" },
       delf: { emoji: "🇫🇷", name: "DELF", sub: "All 4 modules · A1 → C2", view: "delf" },
+      study: { emoji: "📘", name: "Study", sub: "Strategies · DELF + TCF C1", view: "study" },
     };
 
     view.innerHTML = `
@@ -620,6 +621,7 @@ window.App = (function () {
     if (window.Writing) registerView("writing", window.Writing.render);
     if (window.MockTest) registerView("mocktest", window.MockTest.render);
     if (window.DELFPractice) registerView("delf", window.DELFPractice.render);
+    if (window.Study) registerView("study", window.Study.render);
     if (window.Progress) registerView("progress", window.Progress.render);
     if (window.Placement) registerView("placement", window.Placement.render);
 
